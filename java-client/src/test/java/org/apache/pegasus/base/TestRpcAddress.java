@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.pegasus.base;
 
 import org.apache.pegasus.rpc.async.HostNameResolver;
@@ -54,5 +55,7 @@ public class TestRpcAddress {
     Assert.assertTrue(addr.fromString("127.0.0.1:34601"));
     Assert.assertEquals(addr.get_ip(), "127.0.0.1");
     Assert.assertEquals(addr.get_port(), 34601);
+
+    String a = "dadada";
   }
 }
