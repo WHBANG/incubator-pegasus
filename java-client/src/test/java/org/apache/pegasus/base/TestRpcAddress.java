@@ -55,7 +55,6 @@ public class TestRpcAddress {
     Assert.assertTrue(addr.fromString("127.0.0.1:34601"));
     Assert.assertEquals(addr.get_ip(), "127.0.0.1");
     Assert.assertEquals(addr.get_port(), 34601);
-
-    String a = "dadada";
+       int c=13;
   }
 }
