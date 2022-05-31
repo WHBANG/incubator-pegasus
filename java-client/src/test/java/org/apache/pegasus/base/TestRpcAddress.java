@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.apache.pegasus.base;
+xixixix package org.apache.pegasus.base;
 
 import org.apache.pegasus.rpc.async.HostNameResolver;
 import org.junit.Assert;
