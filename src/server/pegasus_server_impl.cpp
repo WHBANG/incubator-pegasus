@@ -1603,7 +1603,8 @@ dsn::error_code pegasus_server_impl::start(int argc, char **argv)
             for (int i = 0; i < loaded_cf_descs.size(); ++i) {
                 if (loaded_cf_descs[i].name == DATA_COLUMN_FAMILY_NAME) {
                     loaded_data_cf_opts = loaded_cf_descs[i].options;
-                    ddebug_replica("{}", loaded_cf_descs[i].options);
+                    ddebug_replica("{}", loaded_cf_descs[i].options.write_buffer_size);
+                    ddebug_replica("{}", loaded_data_cf_opts.options.write_buffer_size);
                 }
             }
             // Reset usage scenario related options according to loaded_data_cf_opts.
