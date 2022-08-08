@@ -272,6 +272,7 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
                                             "rocksdb_write_buffer_size",
                                             64 * 1024 * 1024,
                                             "rocksdb options.write_buffer_size");
+    ddebug_replica("wanghao: {}", _data_cf_opts.write_buffer_size);
 
     _data_cf_opts.max_write_buffer_number =
         (int)dsn_config_get_value_int64("pegasus.server",

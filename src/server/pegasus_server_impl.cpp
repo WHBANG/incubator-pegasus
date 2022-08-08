@@ -1603,8 +1603,8 @@ dsn::error_code pegasus_server_impl::start(int argc, char **argv)
             for (int i = 0; i < loaded_cf_descs.size(); ++i) {
                 if (loaded_cf_descs[i].name == DATA_COLUMN_FAMILY_NAME) {
                     loaded_data_cf_opts = loaded_cf_descs[i].options;
-                    ddebug_replica("{}", loaded_cf_descs[i].options.write_buffer_size);
-                    ddebug_replica("{}", loaded_data_cf_opts.options.write_buffer_size);
+                    ddebug_replica("has_incompatible_db_options: {}",
+                                   loaded_data_cf_opts.write_buffer_size);
                 }
             }
             // Reset usage scenario related options according to loaded_data_cf_opts.
@@ -3007,6 +3007,8 @@ void pegasus_server_impl::reset_usage_scenario_options(
     target_opts->max_compaction_bytes = base_opts.max_compaction_bytes;
     target_opts->write_buffer_size = base_opts.write_buffer_size;
     target_opts->max_write_buffer_number = base_opts.max_write_buffer_number;
+    ddebug_replica("old value: {}", target_opts.write_buffer_size);
+    ddebug_replica("new value: {}", base_opts.write_buffer_size);
 }
 
 bool pegasus_server_impl::set_options(
