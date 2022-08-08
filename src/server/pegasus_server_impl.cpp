@@ -1609,7 +1609,7 @@ dsn::error_code pegasus_server_impl::start(int argc, char **argv)
             // We don't use `loaded_data_cf_opts` directly because pointer-typed options will
             // only be initialized with default values when calling 'LoadLatestOptions', see
             // 'rocksdb/utilities/options_util.h'.
-            reset_usage_scenario_options(loaded_data_cf_opts, &tmp_data_cf_opts);
+            // reset_usage_scenario_options(loaded_data_cf_opts, &tmp_data_cf_opts);
             _db_opts.allow_ingest_behind = parse_allow_ingest_behind(envs);
         }
     } else {
