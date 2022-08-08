@@ -2996,6 +2996,8 @@ void pegasus_server_impl::reset_usage_scenario_options(
     const rocksdb::ColumnFamilyOptions &base_opts, rocksdb::ColumnFamilyOptions *target_opts)
 {
     // reset usage scenario related options, refer to options set in 'set_usage_scenario' function.
+    ddebug_replica("1 -> old value: {}", target_opts->write_buffer_size);
+    ddebug_replica("1 -> new value: {}", base_opts.write_buffer_size);
     target_opts->level0_file_num_compaction_trigger = base_opts.level0_file_num_compaction_trigger;
     target_opts->level0_slowdown_writes_trigger = base_opts.level0_slowdown_writes_trigger;
     target_opts->level0_stop_writes_trigger = base_opts.level0_stop_writes_trigger;
@@ -3007,8 +3009,8 @@ void pegasus_server_impl::reset_usage_scenario_options(
     target_opts->max_compaction_bytes = base_opts.max_compaction_bytes;
     target_opts->write_buffer_size = base_opts.write_buffer_size;
     target_opts->max_write_buffer_number = base_opts.max_write_buffer_number;
-    ddebug_replica("old value: {}", target_opts->write_buffer_size);
-    ddebug_replica("new value: {}", base_opts.write_buffer_size);
+    ddebug_replica("2 -> old value: {}", target_opts->write_buffer_size);
+    ddebug_replica("2 -> new value: {}", base_opts.write_buffer_size);
 }
 
 bool pegasus_server_impl::set_options(
