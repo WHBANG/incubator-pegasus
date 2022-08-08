@@ -1603,8 +1603,6 @@ dsn::error_code pegasus_server_impl::start(int argc, char **argv)
             for (int i = 0; i < loaded_cf_descs.size(); ++i) {
                 if (loaded_cf_descs[i].name == DATA_COLUMN_FAMILY_NAME) {
                     loaded_data_cf_opts = loaded_cf_descs[i].options;
-                    ddebug_replica("has_incompatible_db_options: {}",
-                                   loaded_data_cf_opts.write_buffer_size);
                 }
             }
             // Reset usage scenario related options according to loaded_data_cf_opts.
@@ -2998,6 +2996,8 @@ void pegasus_server_impl::reset_usage_scenario_options(
     // reset usage scenario related options, refer to options set in 'set_usage_scenario' function.
     ddebug_replica("1 -> old value: {}", target_opts->write_buffer_size);
     ddebug_replica("1 -> new value: {}", base_opts.write_buffer_size);
+    ddebug_replica("1 -> old value: {}", target_opts->target_file_size_base);
+    ddebug_replica("1 -> new value: {}", base_opts.target_file_size_base);
     target_opts->level0_file_num_compaction_trigger = base_opts.level0_file_num_compaction_trigger;
     target_opts->level0_slowdown_writes_trigger = base_opts.level0_slowdown_writes_trigger;
     target_opts->level0_stop_writes_trigger = base_opts.level0_stop_writes_trigger;
@@ -3011,6 +3011,8 @@ void pegasus_server_impl::reset_usage_scenario_options(
     target_opts->max_write_buffer_number = base_opts.max_write_buffer_number;
     ddebug_replica("2 -> old value: {}", target_opts->write_buffer_size);
     ddebug_replica("2 -> new value: {}", base_opts.write_buffer_size);
+    ddebug_replica("1 -> old value: {}", target_opts->target_file_size_base);
+    ddebug_replica("1 -> new value: {}", base_opts.target_file_size_base);
 }
 
 bool pegasus_server_impl::set_options(
