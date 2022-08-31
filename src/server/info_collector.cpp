@@ -101,6 +101,12 @@ info_collector::info_collector()
     // _storage_size_retry_max_count is in range of [0, 3]
     _storage_size_retry_max_count =
         std::min(3u, _storage_size_fetch_interval_seconds / _storage_size_retry_wait_seconds);
+
+    _enable_capacity_unit_calculator =
+        dsn_config_get_value_bool("pegasus.server",
+                                  "enable_capacity_unit_calculator",
+                                  true,
+                                  "support capacity unit calculator read/write statistics");
 }
 
 info_collector::~info_collector()
@@ -121,21 +127,23 @@ void info_collector::start()
                                       0,
                                       std::chrono::minutes(1));
 
-    _capacity_unit_stat_timer_task = ::dsn::tasking::enqueue_timer(
-        LPC_PEGASUS_CAPACITY_UNIT_STAT_TIMER,
-        &_tracker,
-        [this] { on_capacity_unit_stat(_capacity_unit_retry_max_count); },
-        std::chrono::seconds(_capacity_unit_fetch_interval_seconds),
-        0,
-        std::chrono::minutes(1));
+    if (__enable_capacity_unit_calculator) {
+        _capacity_unit_stat_timer_task = ::dsn::tasking::enqueue_timer(
+            LPC_PEGASUS_CAPACITY_UNIT_STAT_TIMER,
+            &_tracker,
+            [this] { on_capacity_unit_stat(_capacity_unit_retry_max_count); },
+            std::chrono::seconds(_capacity_unit_fetch_interval_seconds),
+            0,
+            std::chrono::minutes(1));
 
-    _storage_size_stat_timer_task = ::dsn::tasking::enqueue_timer(
-        LPC_PEGASUS_STORAGE_SIZE_STAT_TIMER,
-        &_tracker,
-        [this] { on_storage_size_stat(_storage_size_retry_max_count); },
-        std::chrono::seconds(_storage_size_fetch_interval_seconds),
-        0,
-        std::chrono::minutes(1));
+        _storage_size_stat_timer_task = ::dsn::tasking::enqueue_timer(
+            LPC_PEGASUS_STORAGE_SIZE_STAT_TIMER,
+            &_tracker,
+            [this] { on_storage_size_stat(_storage_size_retry_max_count); },
+            std::chrono::seconds(_storage_size_fetch_interval_seconds),
+            0,
+            std::chrono::minutes(1));
+    }
 }
 
 void info_collector::stop() { _tracker.cancel_outstanding_tasks(); }

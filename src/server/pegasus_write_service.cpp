@@ -32,12 +32,11 @@ namespace server {
 DEFINE_TASK_CODE(LPC_INGESTION, TASK_PRIORITY_COMMON, THREAD_POOL_INGESTION)
 
 pegasus_write_service::pegasus_write_service(pegasus_server_impl *server)
-    : replica_base(server),
-      _server(server),
-      _impl(new impl(server)),
-      _batch_start_time(0),
-      _cu_calculator(server->_cu_calculator.get())
+    : replica_base(server), _server(server), _impl(new impl(server)), _batch_start_time(0)
 {
+    if (nullptr != server->_cu_calculator) {
+        _cu_calculator = server->_cu_calculator.get();
+    }
     std::string str_gpid = fmt::format("{}", server->get_gpid());
 
     std::string name;
@@ -155,7 +154,7 @@ int pegasus_write_service::multi_put(const db_write_context &ctx,
     _pfc_multi_put_qps->increment();
     int err = _impl->multi_put(ctx, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_multi_put_cu(resp.error, update.hash_key, update.kvs);
     }
 
@@ -171,7 +170,7 @@ int pegasus_write_service::multi_remove(int64_t decree,
     _pfc_multi_remove_qps->increment();
     int err = _impl->multi_remove(decree, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_multi_remove_cu(resp.error, update.hash_key, update.sort_keys);
     }
 
@@ -187,7 +186,7 @@ int pegasus_write_service::incr(int64_t decree,
     _pfc_incr_qps->increment();
     int err = _impl->incr(decree, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_incr_cu(resp.error, update.key);
     }
 
@@ -203,7 +202,7 @@ int pegasus_write_service::check_and_set(int64_t decree,
     _pfc_check_and_set_qps->increment();
     int err = _impl->check_and_set(decree, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_check_and_set_cu(resp.error,
                                              update.hash_key,
                                              update.check_sort_key,
@@ -223,7 +222,7 @@ int pegasus_write_service::check_and_mutate(int64_t decree,
     _pfc_check_and_mutate_qps->increment();
     int err = _impl->check_and_mutate(decree, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_check_and_mutate_cu(
             resp.error, update.hash_key, update.check_sort_key, update.mutate_list);
     }
@@ -250,7 +249,7 @@ int pegasus_write_service::batch_put(const db_write_context &ctx,
     _batch_latency_perfcounters.push_back(_pfc_put_latency.get());
     int err = _impl->batch_put(ctx, update, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_put_cu(resp.error, update.key, update.value);
     }
 
@@ -267,7 +266,7 @@ int pegasus_write_service::batch_remove(int64_t decree,
     _batch_latency_perfcounters.push_back(_pfc_remove_latency.get());
     int err = _impl->batch_remove(decree, key, resp);
 
-    if (_server->is_primary()) {
+    if (nullptr != _cu_calculator && _server->is_primary()) {
         _cu_calculator->add_remove_cu(resp.error, key);
     }
 

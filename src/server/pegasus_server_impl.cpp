@@ -343,8 +343,9 @@ void pegasus_server_impl::on_get(get_rpc rpc)
     if (status.ok()) {
         pegasus_extract_user_data(_pegasus_data_version, std::move(value), resp.value);
     }
-
-    _cu_calculator->add_get_cu(rpc.dsn_request(), resp.error, key, resp.value);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_get_cu(rpc.dsn_request(), resp.error, key, resp.value);
+    }
     _pfc_get_latency->set(dsn_now_ns() - start_time);
 }
 
@@ -374,7 +375,9 @@ void pegasus_server_impl::on_multi_get(multi_get_rpc rpc)
                rpc.remote_address().to_string(),
                request.sort_key_filter_type);
         resp.error = rocksdb::Status::kInvalidArgument;
-        _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+        if (nullptr != _cu_calculator) {
+            _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+        }
         _pfc_multi_get_latency->set(dsn_now_ns() - start_time);
         return;
     }
@@ -461,7 +464,9 @@ void pegasus_server_impl::on_multi_get(multi_get_rpc rpc)
                       stop_inclusive ? "inclusive" : "exclusive");
             }
             resp.error = rocksdb::Status::kOk;
-            _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+            if (nullptr != _cu_calculator) {
+                _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+            }
             _pfc_multi_get_latency->set(dsn_now_ns() - start_time);
 
             return;
@@ -773,7 +778,9 @@ void pegasus_server_impl::on_multi_get(multi_get_rpc rpc)
         _pfc_recent_filter_count->add(filter_count);
     }
 
-    _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_multi_get_cu(req, resp.error, request.hash_key, resp.kvs);
+    }
     _pfc_multi_get_latency->set(dsn_now_ns() - start_time);
 }
 
@@ -799,7 +806,9 @@ void pegasus_server_impl::on_batch_get(batch_get_rpc rpc)
         response.error = rocksdb::Status::kInvalidArgument;
         derror_replica("Invalid argument for batch_get from {}: 'keys' field in request is empty",
                        rpc.remote_address().to_string());
-        _cu_calculator->add_batch_get_cu(rpc.dsn_request(), response.error, response.data);
+        if (nullptr != _cu_calculator) {
+            _cu_calculator->add_batch_get_cu(rpc.dsn_request(), response.error, response.data);
+        }
         _pfc_batch_get_latency->set(dsn_now_ns() - start_time);
         return;
     }
@@ -889,7 +898,9 @@ void pegasus_server_impl::on_batch_get(batch_get_rpc rpc)
         _pfc_recent_abnormal_count->increment();
     }
 
-    _cu_calculator->add_batch_get_cu(rpc.dsn_request(), response.error, response.data);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_batch_get_cu(rpc.dsn_request(), response.error, response.data);
+    }
     _pfc_batch_get_latency->set(time_used);
 }
 
@@ -973,7 +984,9 @@ void pegasus_server_impl::on_sortkey_count(sortkey_count_rpc rpc)
         resp.count = -1;
     }
 
-    _cu_calculator->add_sortkey_count_cu(rpc.dsn_request(), resp.error, hash_key);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_sortkey_count_cu(rpc.dsn_request(), resp.error, hash_key);
+    }
     _pfc_scan_latency->set(dsn_now_ns() - start_time);
 }
 
@@ -1041,7 +1054,9 @@ void pegasus_server_impl::on_ttl(ttl_rpc rpc)
         }
     }
 
-    _cu_calculator->add_ttl_cu(rpc.dsn_request(), resp.error, key);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_ttl_cu(rpc.dsn_request(), resp.error, key);
+    }
 }
 
 void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
@@ -1070,7 +1085,9 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
                rpc.remote_address().to_string(),
                request.hash_key_filter_type);
         resp.error = rocksdb::Status::kInvalidArgument;
-        _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        if (nullptr != _cu_calculator) {
+            _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        }
         _pfc_scan_latency->set(dsn_now_ns() - start_time);
 
         return;
@@ -1082,7 +1099,9 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
                rpc.remote_address().to_string(),
                request.sort_key_filter_type);
         resp.error = rocksdb::Status::kInvalidArgument;
-        _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        if (nullptr != _cu_calculator) {
+            _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        }
         _pfc_scan_latency->set(dsn_now_ns() - start_time);
 
         return;
@@ -1140,7 +1159,9 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
                   request.stop_inclusive ? "inclusive" : "exclusive");
         }
         resp.error = rocksdb::Status::kOk;
-        _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        if (nullptr != _cu_calculator) {
+            _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+        }
         _pfc_scan_latency->set(dsn_now_ns() - start_time);
 
         return;
@@ -1297,7 +1318,9 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
         _pfc_recent_filter_count->add(filter_count);
     }
 
-    _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+    }
     _pfc_scan_latency->set(dsn_now_ns() - start_time);
 }
 
@@ -1449,7 +1472,9 @@ void pegasus_server_impl::on_scan(scan_rpc rpc)
         resp.error = rocksdb::Status::Code::kNotFound;
     }
 
-    _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+    if (nullptr != _cu_calculator) {
+        _cu_calculator->add_scan_cu(req, resp.error, resp.kvs);
+    }
     _pfc_scan_latency->set(dsn_now_ns() - start_time);
 }
 
@@ -1726,8 +1751,15 @@ dsn::error_code pegasus_server_impl::start(int argc, char **argv)
     });
 
     // initialize cu calculator and write service after server being initialized.
-    _cu_calculator = dsn::make_unique<capacity_unit_calculator>(
-        this, _read_hotkey_collector, _write_hotkey_collector, _read_size_throttling_controller);
+    if (_enable_capacity_unit_calculator) {
+        _cu_calculator =
+            dsn::make_unique<capacity_unit_calculator>(this,
+                                                       _read_hotkey_collector,
+                                                       _write_hotkey_collector,
+                                                       _read_size_throttling_controller);
+    } else {
+        _cu_calculator = nullptr;
+    }
     _server_write = dsn::make_unique<pegasus_server_write>(this, _verbose_log);
 
     dsn::tasking::enqueue_timer(LPC_ANALYZE_HOTKEY,

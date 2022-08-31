@@ -606,6 +606,13 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _update_rdb_stat_interval = std::chrono::seconds(dsn_config_get_value_uint64(
         "pegasus.server", "update_rdb_stat_interval", 60, "update_rdb_stat_interval, in seconds"));
 
+    _enable_capacity_unit_calculator =
+        dsn_config_get_value_bool("pegasus.server",
+                                  "enable_capacity_unit_calculator",
+                                  true,
+                                  "support capacity unit calculator read/write statistics");
+    ddebug_replica("enable_capacity_unit_calculator = {}", enable_capacity_unit_calculator);
+
     // TODO: move the qps/latency counters and it's statistics to replication_app_base layer
     std::string str_gpid = _gpid.to_string();
     char name[256];

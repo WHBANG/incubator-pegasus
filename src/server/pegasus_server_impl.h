@@ -450,6 +450,7 @@ private:
     std::atomic<int64_t> _last_durable_decree;
 
     std::unique_ptr<meta_store> _meta_store;
+    bool _enable_capacity_unit_calculator; // whether support capacity unit read/write statistics
     std::unique_ptr<capacity_unit_calculator> _cu_calculator;
     std::unique_ptr<pegasus_server_write> _server_write;
 
