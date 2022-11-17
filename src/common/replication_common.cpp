@@ -41,6 +41,11 @@ DSN_DEFINE_int32("replication",
                  5,
                  "concurrent bulk load downloading replica count");
 
+DSN_DEFINE_uint32("replication",
+                  update_ranger_policy_interval_s,
+                  5,
+                  "every this period(ms) the meta server will do load ranger policy");
+
 /**
  * Empty write is used for flushing WAL log entry which is submit asynchronously.
  * Make sure it can work well if you diable it.
@@ -112,6 +117,8 @@ replication_options::replication_options()
     learn_app_max_concurrent_count = 5;
 
     cold_backup_checkpoint_reserve_minutes = 10;
+
+    update_ranger_policy_interval_s = 5;
 }
 
 replication_options::~replication_options() {}
@@ -409,6 +416,8 @@ void replication_options::initialize()
 
     CHECK(replica_helper::load_meta_servers(meta_servers), "invalid meta server config");
 
+    update_ranger_policy_interval_s = FLAGS_update_ranger_policy_interval_s;
+
     sanity_check();
 }
 
@@ -647,6 +656,8 @@ const std::string replica_envs::ROCKSDB_BLOCK_CACHE_ENABLED("replica.rocksdb_blo
 const std::string replica_envs::BUSINESS_INFO("business.info");
 const std::string replica_envs::REPLICA_ACCESS_CONTROLLER_ALLOWED_USERS(
     "replica_access_controller.allowed_users");
+const std::string replica_envs::REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES(
+    "replica_access_controller.ranger_policies");
 const std::string replica_envs::READ_QPS_THROTTLING("replica.read_throttling");
 const std::string replica_envs::READ_SIZE_THROTTLING("replica.read_throttling_by_size");
 const std::string

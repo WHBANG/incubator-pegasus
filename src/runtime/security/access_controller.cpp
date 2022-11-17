@@ -28,23 +28,16 @@ namespace security {
 DSN_DEFINE_bool("security", enable_acl, false, "whether enable access controller or not");
 DSN_TAG_VARIABLE(enable_acl, FT_MUTABLE);
 
-DSN_DEFINE_string("security", super_users, "", "super user for access controller");
-
-access_controller::access_controller() { utils::split_args(FLAGS_super_users, _super_users, ','); }
+access_controller::access_controller() {}
 
 access_controller::~access_controller() {}
 
-bool access_controller::pre_check(const std::string &user_name)
-{
-    if (!FLAGS_enable_acl || _super_users.find(user_name) != _super_users.end()) {
-        return true;
-    }
-    return false;
-}
+bool access_controller::pre_check() { return !FLAGS_enable_acl; }
 
-std::unique_ptr<access_controller> create_meta_access_controller()
+std::unique_ptr<access_controller>
+create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
 {
-    return make_unique<meta_access_controller>();
+    return make_unique<meta_access_controller>(policy_provider);
 }
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name)

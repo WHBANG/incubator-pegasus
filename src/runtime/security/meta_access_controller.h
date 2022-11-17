@@ -18,23 +18,32 @@
 #pragma once
 
 #include "access_controller.h"
+#include "runtime/ranger/ranger_policy_provider.h"
 
 #include <unordered_set>
+#include <unordered_map>
 
 namespace dsn {
 class message_ex;
+
+namespace ranger {
+class ranger_policy_provider;
+}
 namespace security {
 
 class meta_access_controller : public access_controller
 {
 public:
-    meta_access_controller();
-    bool allowed(message_ex *msg) override;
+    meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
+
+    bool allowed(message_ex *msg, std::shared_ptr<std::vector<std::string>> match);
 
 private:
-    void register_allowed_list(const std::string &rpc_code);
+    std::unordered_set<int> _rpc_code_write_list;
 
-    std::unordered_set<int> _allowed_rpc_code_list;
+    void register_rpc_code_write_list(const std::string &rpc_code);
+
+    std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
 };
 } // namespace security
 } // namespace dsn

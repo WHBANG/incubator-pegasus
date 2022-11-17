@@ -20,9 +20,14 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace dsn {
 class message_ex;
+
+namespace ranger {
+class ranger_policy_provider;
+}
 namespace security {
 
 class access_controller
@@ -38,19 +43,34 @@ public:
     virtual void update(const std::string &acls){};
 
     /**
+     * update the access controller policy
+     *  policies - the policies from ranger to update
+     */
+    virtual void update_ranger_policies(std::string &policies){};
+
+    /**
      * check if the message received is allowd to do something.
      *   msg - the message received
      **/
-    virtual bool allowed(message_ex *msg) = 0;
+
+    virtual bool allowed(message_ex *msg, bool is_read) { return false; }
+
+    virtual bool allowed(message_ex *msg, std::shared_ptr<std::vector<std::string>> match)
+    {
+        return false;
+    }
+
+    /*
+    * check if enable acl
+    */
+    bool pre_check();
 
 protected:
-    bool pre_check(const std::string &user_name);
     friend class meta_access_controller_test;
-
-    std::unordered_set<std::string> _super_users;
 };
 
-std::unique_ptr<access_controller> create_meta_access_controller();
+std::unique_ptr<access_controller>
+create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name);
 } // namespace security

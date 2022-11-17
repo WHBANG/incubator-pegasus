@@ -1328,14 +1328,27 @@ void server_state::recall_app(dsn::message_ex *msg)
 }
 
 void server_state::list_apps(const configuration_list_apps_request &request,
-                             configuration_list_apps_response &response)
+                             configuration_list_apps_response &response,
+                             std::shared_ptr<std::vector<std::string>> match)
 {
     LOG_DEBUG("list app request, status(%d)", request.status);
+    bool match_all = false;
+    if (!match || find(match->begin(), match->end(), "*") != match->end()) {
+        match_all = true;
+    }
     zauto_read_lock l(_lock);
     for (auto &kv : _all_apps) {
         app_state &app = *(kv.second);
         if (request.status == app_status::AS_INVALID || request.status == app.status) {
-            response.infos.push_back(app);
+            if (match_all) {
+                response.infos.push_back(app);
+            } else {
+                int splitter = app.app_name.find_first_of('.');
+                std::string app_name_prefix = app.app_name.substr(0, splitter);
+                if (find(match->begin(), match->end(), app_name_prefix) != match->end()) {
+                    response.infos.push_back(app);
+                }
+            }
         }
     }
     response.err = dsn::ERR_OK;
