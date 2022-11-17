@@ -48,7 +48,7 @@ void replica::on_client_write(dsn::message_ex *request, bool ignore_throttling)
 {
     _checker.only_one_thread_access();
 
-    if (!_access_controller->allowed(request)) {
+    if (!_access_controller->allowed(request, false)) {
         response_client_write(request, ERR_ACL_DENY);
         return;
     }

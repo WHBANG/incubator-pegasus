@@ -20,14 +20,17 @@
 #include "utils/synchronize.h"
 #include "access_controller.h"
 
+#include "runtime/ranger/ranger_resource_policy.h"
+
 namespace dsn {
 namespace security {
 class replica_access_controller : public access_controller
 {
 public:
     explicit replica_access_controller(const std::string &name);
-    bool allowed(message_ex *msg) override;
+    bool allowed(message_ex *msg, bool is_read);
     void update(const std::string &users) override;
+    void update_ranger_policies(std::string &policies) override;
 
 private:
     utils::rw_lock_nr _lock; // [
@@ -35,6 +38,8 @@ private:
     std::string _env_users;
     // ]
     std::string _name;
+    std::string _env_policies;
+    ranger::policy_priority_level _ranger_policies;
 
     friend class replica_access_controller_test;
 };
