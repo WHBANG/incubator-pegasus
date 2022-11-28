@@ -20,13 +20,13 @@
 #pragma once
 
 #include <memory>
-#include <string>
 #include <map>
+#include <string>
 
 #include <rapidjson/document.h>
 
-#include "utils/errors.h"
 #include "ranger_resource_policy.h"
+#include "utils/errors.h"
 
 namespace dsn {
 namespace ranger {
@@ -36,7 +36,7 @@ enum resource_type
     GLOBAL = 0,
     DATABASE,
     DATABASE_TABLE,
-    UNKNOWN
+    UNKNOWN,
 };
 
 ENUM_BEGIN(resource_type, UNKNOWN)
@@ -50,23 +50,28 @@ ENUM_TYPE_SERIALIZATION(resource_type, UNKNOWN)
 using resource_acls_type = std::map<std::string, std::vector<ranger_resource_policy>>;
 class ranger_resource_policy_manager
 {
-
 public:
-    // ACLs for access_controller
-    resource_acls_type acls;
-
-    // Record the policy version number to determine whether to update the policy
-    int _ranger_service_version;
-
-    DEFINE_JSON_SERIALIZATION(_ranger_service_version, acls)
-
     ranger_resource_policy_manager();
 
     ~ranger_resource_policy_manager() = default;
 
+    // Periodically pull a policy from ranger.
     dsn::error_code load_ranger_resource_policy();
 
+    resource_acls_type get_acls();
+
 private:
+    // Record the policy version number to determine whether to update the policy
+    int _ranger_service_version;
+
+    // ACLs for access_controller
+    resource_acls_type _acls;
+
+    DEFINE_JSON_SERIALIZATION(_ranger_service_version, _acls);
+
+    // String to enum(access_type)
+    std::map<std::string, access_type> _access_type_map;
+
     // Parse json
     dsn::error_code parse(const std::string &resp);
 
@@ -75,9 +80,6 @@ private:
                                      ranger_resource_policy &acl);
 
     void policy_setter(std::vector<policy_item> &policy_list, const rapidjson::Value &d);
-
-    // String to enum(access_type)
-    std::map<std::string, access_type> access_type_map;
 };
 
 } // namespace ranger

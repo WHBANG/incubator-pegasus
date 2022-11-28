@@ -17,10 +17,9 @@
 
 #pragma once
 
-#include "utils/synchronize.h"
 #include "access_controller.h"
-
 #include "runtime/ranger/ranger_resource_policy.h"
+#include "utils/synchronize.h"
 
 namespace dsn {
 namespace security {

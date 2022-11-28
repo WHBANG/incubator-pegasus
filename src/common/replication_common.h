@@ -128,8 +128,6 @@ public:
 
     int32_t max_concurrent_bulk_load_downloading_count;
 
-    int32_t update_ranger_policy_interval_s;
-
 public:
     replication_options();
     ~replication_options();

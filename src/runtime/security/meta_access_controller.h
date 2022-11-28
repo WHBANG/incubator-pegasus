@@ -39,11 +39,13 @@ public:
     bool allowed(message_ex *msg, std::shared_ptr<std::vector<std::string>> match);
 
 private:
-    std::unordered_set<int> _rpc_code_write_list;
+    void register_allowed_list(const std::string &rpc_code);
 
-    void register_rpc_code_write_list(const std::string &rpc_code);
+    void register_rpc_code_write_list(const std::vector<std::string> &rpc_list);
 
     std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
+
+    std::unordered_set<int> _rpc_code_write_list;
 };
 } // namespace security
 } // namespace dsn
