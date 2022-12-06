@@ -282,15 +282,19 @@ void meta_service::start_service()
                          server_state::sStateHash);
     }
 
-    tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
-                           tracker(),
-                           [this]() {
-                               if (!this->_access_controller->is_disable_ranger_acl()) {
-                                   this->_ranger_policy_provider->update();
-                               }
-                           },
-                           std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
-                           server_state::sStateHash);
+    _ranger_policy_provider = ranger::create_ranger_policy_provider(
+        this, meta_options::concat_path_unix_style(_cluster_root, "ranger_policy_meta_root"));
+
+    _access_controller = security::create_meta_access_controller(_ranger_policy_provider);
+
+    if (!this->_access_controller->is_disable_ranger_acl()) {
+        LOG_INFO("enable ranger to acl");
+        tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
+                               tracker(),
+                               [this]() { this->_ranger_policy_provider->update(); },
+                               std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
+                               server_state::sStateHash);
+    }
 
     tasking::enqueue_timer(LPC_META_STATE_NORMAL,
                            nullptr,
@@ -401,11 +405,6 @@ error_code meta_service::start()
     _split_svc = dsn::make_unique<meta_split_service>(this);
 
     _state->register_cli_commands();
-
-    _ranger_policy_provider = ranger::create_ranger_policy_provider(
-        this, meta_options::concat_path_unix_style(_cluster_root, "ranger_policy_meta_root"));
-
-    _access_controller = security::create_meta_access_controller(_ranger_policy_provider);
 
     start_service();
 
