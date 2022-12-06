@@ -48,7 +48,7 @@ meta_access_controller::meta_access_controller(
     _policy_provider = policy_provider;
 
     // use ranger policy
-    if (!pre_check()) {
+    if (!is_disable_ranger_acl()) {
         register_rpc_code_write_list(
             std::vector<std::string>{"RPC_CM_UPDATE_PARTITION_CONFIGURATION",
                                      "RPC_CM_CONFIG_SYNC",
@@ -85,13 +85,12 @@ meta_access_controller::meta_access_controller(
     }
 }
 
-bool meta_access_controller::allowed(message_ex *msg,
-                                     std::shared_ptr<std::vector<std::string>> match)
+bool meta_access_controller::allowed(message_ex *msg, const std::string &app_name)
 {
     const auto rpc_code = msg->rpc_code().code();
     const auto user_name = msg->io_session->get_client_username();
 
-    if (pre_check()) {
+    if (is_disable_ranger_acl()) {
         if (pre_check(user_name) ||
             _rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
             return true;
@@ -103,12 +102,13 @@ bool meta_access_controller::allowed(message_ex *msg,
     if (_rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
         return true;
     }
-    LOG_INFO_F("access controller with user_name = {}, rpc = {}, rpc_code = {}",
+    std::string database_name;
+    parse_ranger_policy_database_name(app_name, database_name);
+    LOG_INFO_F("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
                user_name,
                msg->rpc_code(),
-               rpc_code);
-
-    return _policy_provider->allowed(rpc_code, user_name, match);
+               database_name);
+    return _policy_provider->allowed(rpc_code, user_name, database_name);
 }
 
 void meta_access_controller::register_rpc_code_write_list(const std::vector<std::string> &rpc_list)
@@ -122,6 +122,18 @@ void meta_access_controller::register_rpc_code_write_list(const std::vector<std:
                      rpc_code);
 
         _rpc_code_write_list.insert(code);
+    }
+}
+
+void meta_access_controller::parse_ranger_policy_database_name(const std::string &app_name,
+                                                               std::string &app_name_prefix)
+{
+    std::vector<std::string> lv;
+    ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+    if (lv.size() == 2) {
+        app_name_prefix = lv[0];
+    } else {
+        app_name_prefix = "";
     }
 }
 

@@ -1274,8 +1274,7 @@ void server_state::do_app_recall(std::shared_ptr<app_state> &app)
         app_path, value, LPC_META_STATE_HIGH, after_recall_app);
 }
 
-void server_state::recall_app(dsn::message_ex *msg,
-                              std::shared_ptr<std::vector<std::string>> match_ptr)
+void server_state::recall_app(dsn::message_ex *msg)
 {
     configuration_recall_app_request request;
     configuration_recall_app_response response;
@@ -1299,22 +1298,8 @@ void server_state::recall_app(dsn::message_ex *msg,
             else
                 response.err = ERR_APP_EXIST;
         } else {
-            int splitter = target_app->app_name.find_first_of('.');
-            std::string app_name_prefix = target_app->app_name.substr(0, splitter);
-            splitter = request.new_app_name.find_first_of('.');
-            std::string new_app_name_prefix = target_app->app_name.substr(0, splitter);
             if (has_seconds_expired(target_app->expire_second)) {
                 response.err = ERR_APP_NOT_EXIST;
-            } else if (match_ptr &&
-                       find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
-                       find(match_ptr->begin(), match_ptr->end(), app_name_prefix) ==
-                           match_ptr->end()) {
-                response.err = ERR_ACL_DENY;
-            } else if (match_ptr && request.new_app_name != "" &&
-                       find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
-                       find(match_ptr->begin(), match_ptr->end(), new_app_name_prefix) ==
-                           match_ptr->end()) {
-                response.err = ERR_INVALID_PARAMETERS;
             } else {
                 std::string &new_app_name =
                     (request.new_app_name == "") ? target_app->app_name : request.new_app_name;
@@ -1344,26 +1329,15 @@ void server_state::recall_app(dsn::message_ex *msg,
 
 void server_state::list_apps(const configuration_list_apps_request &request,
                              configuration_list_apps_response &response,
-                             std::shared_ptr<std::vector<std::string>> match_ptr)
+                             dsn::message_ex *msg)
 {
     LOG_DEBUG("list app request, status(%d)", request.status);
-    bool match_all = false;
-    if (!match_ptr || find(match_ptr->begin(), match_ptr->end(), "*") != match_ptr->end()) {
-        match_all = true;
-    }
     zauto_read_lock l(_lock);
     for (auto &kv : _all_apps) {
         app_state &app = *(kv.second);
         if (request.status == app_status::AS_INVALID || request.status == app.status) {
-            if (match_all) {
+            if (nullptr == msg || _meta_svc->get_access_controller()->allowed(msg, app.app_name)) {
                 response.infos.push_back(app);
-            } else {
-                int splitter = app.app_name.find_first_of('.');
-                std::string app_name_prefix = app.app_name.substr(0, splitter);
-                if (find(match_ptr->begin(), match_ptr->end(), app_name_prefix) !=
-                    match_ptr->end()) {
-                    response.infos.push_back(app);
-                }
             }
         }
     }

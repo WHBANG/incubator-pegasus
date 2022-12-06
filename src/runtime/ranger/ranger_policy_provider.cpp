@@ -117,18 +117,15 @@ void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource
 }
 
 bool ranger_policy_provider::allowed(const int rpc_code,
-                                     const std::string &name,
-                                     std::shared_ptr<std::vector<std::string>> match_ptr)
+                                     const std::string &user_name,
+                                     const std::string &database_name)
 {
     {
         utils::auto_read_lock l(_global_policies_lock);
         if (_rpc_match_global_acl.find(rpc_code) != _rpc_match_global_acl.end()) {
             for (auto &item : _global_policies) {
-                access_type type = _rpc_match_global_acl[rpc_code];
-                if (item._policies.allowed(name, type)) {
-                    if (match_ptr) {
-                        match_ptr->assign(item._global_values.begin(), item._global_values.end());
-                    }
+                const access_type &type = _rpc_match_global_acl[rpc_code];
+                if (item._policies.allowed(user_name, type)) {
                     return true;
                 }
             }
@@ -141,13 +138,15 @@ bool ranger_policy_provider::allowed(const int rpc_code,
         utils::auto_read_lock l(_database_policies_lock);
         if (_rpc_match_database_acl.find(rpc_code) != _rpc_match_database_acl.end()) {
             for (auto &item : _database_policies) {
-                access_type type = _rpc_match_database_acl[rpc_code];
-                if (item._policies.allowed(name, type)) {
-                    if (match_ptr) {
-                        match_ptr->assign(item._database_values.begin(),
-                                          item._database_values.end());
+                const access_type &type = _rpc_match_database_acl[rpc_code];
+                if (item._policies.allowed(user_name, type)) {
+                    if ("" == database_name &&
+                        item._database_values.find("*") != item._database_values.end()) {
+                        return true;
                     }
-                    return true;
+                    if (item._database_values.find(database_name) != item._database_values.end()) {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -264,7 +263,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
         _global_policies.clear();
         _global_policies.swap(_manager->get_acls()[enum_to_string(resource_type::GLOBAL)]);
         dsn::blob value =
-            json::json_forwarder<std::vector<ranger_resource_policy>>::encode(_global_policies);
+            json::json_forwarder<ranger_resource_policies_set>::encode(_global_policies);
         LOG_DEBUG_F("update global_policies cahce, value = {}", value.to_string());
     }
     {
@@ -272,7 +271,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
         _database_policies.clear();
         _database_policies.swap(_manager->get_acls()[enum_to_string(resource_type::DATABASE)]);
         dsn::blob value =
-            json::json_forwarder<std::vector<ranger_resource_policy>>::encode(_database_policies);
+            json::json_forwarder<ranger_resource_policies_set>::encode(_database_policies);
         LOG_DEBUG_F("update database_policies cahce, value = {}", value.to_string());
     }
     return dsn::ERR_OK;
@@ -286,8 +285,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_apps()
     }
     auto table_policies = _manager->get_acls()[enum_to_string(resource_type::DATABASE_TABLE)];
 
-    dsn::blob value =
-        json::json_forwarder<std::vector<ranger_resource_policy>>::encode(table_policies);
+    dsn::blob value = json::json_forwarder<ranger_resource_policies_set>::encode(table_policies);
     LOG_DEBUG_F("table policy value = {}", value.to_string());
 
     dsn::replication::configuration_list_apps_response list_apps_resp;

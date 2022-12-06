@@ -42,7 +42,10 @@ DSN_DECLARE_bool(enable_acl);
 class meta_access_controller_test : public testing::Test
 {
 public:
-    meta_access_controller_test() { _meta_access_controller = create_meta_access_controller(); }
+    meta_access_controller_test()
+    {
+        _meta_access_controller = create_meta_access_controller(nullptr);
+    }
 
     void set_super_user(const std::string &super_user)
     {
@@ -56,7 +59,7 @@ public:
 
     bool allowed(dsn::message_ex *msg) { return _meta_access_controller->allowed(msg); }
 
-    std::unique_ptr<access_controller> _meta_access_controller;
+    std::shared_ptr<access_controller> _meta_access_controller;
 };
 
 TEST_F(meta_access_controller_test, pre_check)

@@ -51,48 +51,59 @@ public:
 
     ~ranger_policy_provider() = default;
 
+    // update ranger policy.
     void update();
 
-    void create_ranger_policy_root(dsn::task_ptr callback);
-
-    void start_sync_ranger_policies();
-
-    dsn::error_code sync_policies_to_remote_storage();
-
-    dsn::error_code sync_policies_to_cache();
-
-    dsn::error_code sync_policies_to_apps();
-
-    void register_rpc_match_acl(rpc_match_acl_type &resource,
-                                const std::string &rpc_code,
-                                const access_type &type);
-
-    bool allowed(const int rpc_code,
-                 const std::string &name,
-                 std::shared_ptr<std::vector<std::string>> match_ptr);
+    // use the policy in ranger for acl.
+    bool allowed(const int rpc_code, const std::string &user_name, const std::string &app_name);
 
 private:
     std::unique_ptr<ranger_resource_policy_manager> _manager;
 
     dsn::task_tracker _tracker;
 
+    // the path where policies is saved in remote storage.
     std::string _ranger_policy_meta_root;
 
     std::chrono::milliseconds _load_ranger_policy_retry_delay_ms;
 
     replication::meta_service *_meta_svc;
 
+    // the cache stores the policy of the global resource.
     utils::rw_lock_nr _global_policies_lock; // [
-    std::vector<ranger_resource_policy> _global_policies;
+    ranger_resource_policies_set _global_policies;
     // ]
 
+    // the cache stores the policy of the database resource.
     utils::rw_lock_nr _database_policies_lock; // [
-    std::vector<ranger_resource_policy> _database_policies;
+    ranger_resource_policies_set _database_policies;
     // ]
 
+    // save the rpc_codes that match the global resource.
     rpc_match_acl_type _rpc_match_global_acl;
 
+    // save the rpc_codes that match the global resource.
     rpc_match_acl_type _rpc_match_database_acl;
+
+    // create the path to save policies in remote_storage.
+    void create_ranger_policy_root(dsn::task_ptr callback);
+
+    // update policies in use from ranger service.
+    void start_sync_ranger_policies();
+
+    // dump policies to remote storage.
+    dsn::error_code sync_policies_to_remote_storage();
+
+    // update global/database sources policy.
+    dsn::error_code sync_policies_to_cache();
+
+    // update app_envs REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES.
+    dsn::error_code sync_policies_to_apps();
+
+    // register the matching between rpc and ranger resources.
+    void register_rpc_match_acl(rpc_match_acl_type &resource,
+                                const std::string &rpc_code,
+                                const access_type &type);
 };
 
 std::shared_ptr<ranger_policy_provider>
