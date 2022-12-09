@@ -43,6 +43,9 @@ ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *m
       _meta_svc(meta_svc)
 {
     _manager = make_unique<ranger_resource_policy_manager>();
+    std::vector<::dsn::rpc_address> meta_servers;
+    replica_helper::load_meta_servers(meta_servers);
+    _ddl_client = make_unique<dsn::replication::replication_ddl_client>(meta_servers);
     // RESOURCE_TYPE::GLOBAL - metadata
     register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_LIST_NODES", access_type::METADATA);
     register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_CLUSTER_INFO", access_type::METADATA);
