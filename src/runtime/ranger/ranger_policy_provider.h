@@ -69,7 +69,7 @@ private:
 
     replication::meta_service *_meta_svc;
 
-    std::unique_ptr<dsn::replication::replication_ddl_client> ddl_client;
+    std::unique_ptr<dsn::replication::replication_ddl_client> _ddl_client;
 
     // the cache stores the policy of the global resource.
     utils::rw_lock_nr _global_policies_lock; // [
