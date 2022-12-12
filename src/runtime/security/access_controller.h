@@ -30,6 +30,12 @@ class ranger_policy_provider;
 }
 namespace security {
 
+enum class client_request_replica_type
+{
+    read,
+    write
+};
+
 class access_controller
 {
 public:
@@ -52,7 +58,7 @@ public:
      * check if the message received is allowd to do something.
      *   msg - the message received
      **/
-    virtual bool allowed(message_ex *msg, bool is_read) { return false; }
+    virtual bool allowed(message_ex *msg, client_request_replica_type req_type) { return false; }
 
     /**
      *  access_controller preforms acl.

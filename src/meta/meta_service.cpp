@@ -57,11 +57,26 @@ DSN_DEFINE_uint64("meta_server",
 DSN_TAG_VARIABLE(min_live_node_count_for_unfreeze, FT_MUTABLE);
 DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
                      [](uint64_t min_live_node_count) -> bool { return min_live_node_count > 0; });
-DSN_DEFINE_uint32(
-    "replication",
-    update_ranger_policy_interval_sec,
-    5,
-    "The interval seconds meta server to pull the latest access control policy from Ranger server");
+
+#define GET_APP_NAME_FROM_REQUEST_STRUCT(req)                                                      \
+    do {                                                                                           \
+        dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*(req));                   \
+        dsn::unmarshall(copied_req, request_struct);                                               \
+                                                                                                   \
+    } while (0)
+
+#define GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id)                                            \
+    do {                                                                                           \
+        if (_state->get_app(app_id) == nullptr) {                                                  \
+            rpc.response().err = ERR_INVALID_PARAMETERS;                                           \
+            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);        \
+            return;                                                                                \
+        }                                                                                          \
+        const std::string app_name = _state->get_app(app_id)->app_name;                            \
+        if (!check_status(rpc, nullptr, app_name)) {                                               \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
 
 meta_service::meta_service()
     : serverlet("meta_service"), _failure_detector(nullptr), _started(false), _recovering(false)
@@ -273,19 +288,10 @@ void meta_service::start_service()
                          server_state::sStateHash);
     }
 
-    _ranger_policy_provider = ranger::create_ranger_policy_provider(
+    _ranger_policy_provider = std::make_shared<ranger::ranger_policy_provider>(
         this, meta_options::concat_path_unix_style(_cluster_root, "ranger_policy_meta_root"));
 
     _access_controller = security::create_meta_access_controller(_ranger_policy_provider);
-
-    if (!this->_access_controller->is_disable_ranger_acl()) {
-        LOG_INFO("enable ranger to acl");
-        tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
-                               tracker(),
-                               [this]() { this->_ranger_policy_provider->update(); },
-                               std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
-                               server_state::sStateHash);
-    }
 
     tasking::enqueue_timer(LPC_META_STATE_NORMAL,
                            nullptr,
@@ -521,8 +527,9 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 void meta_service::on_create_app(dsn::message_ex *req)
 {
     configuration_create_app_response response;
-    configuration_create_app_request request;
-    if (!check_status_with_msg(req, response, get_app_name(req, request))) {
+    configuration_create_app_request request_struct;
+    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
+    if (!check_status_with_msg(req, response, request_struct.app_name)) {
         return;
     }
 
@@ -536,8 +543,9 @@ void meta_service::on_create_app(dsn::message_ex *req)
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
     configuration_drop_app_response response;
-    configuration_drop_app_request request;
-    if (!check_status_with_msg(req, response, get_app_name(req, request))) {
+    configuration_drop_app_request request_struct;
+    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
+    if (!check_status_with_msg(req, response, request_struct.app_name)) {
         return;
     }
 
@@ -578,8 +586,10 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     if (!check_status_with_msg(req, response, app_name)) {
         return;
     }
-    // check new_app_name reasonable
-    if (!_access_controller->is_disable_ranger_acl() && request.new_app_name != "") {
+    // check new_app_name reasonable.
+    // when the ranger acl is enabled, ensure that the prefix of new_app_name is consistent with
+    // old, or it is empty
+    if (!_access_controller->is_disable_ranger_acl() && !request.new_app_name.empty()) {
         std::string app_name_prefix;
         _access_controller->parse_ranger_policy_database_name(app_name, app_name_prefix);
         std::string new_app_name_prefix;
@@ -788,16 +798,7 @@ void meta_service::on_control_meta_level(configuration_meta_control_rpc rpc)
 void meta_service::on_propose_balancer(configuration_balancer_rpc rpc)
 {
     int32_t app_id = rpc.request().gpid.get_app_id();
-    if (_state->get_app(app_id) == nullptr) {
-        rpc.response().err = ERR_INVALID_PARAMETERS;
-        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
-        return;
-    }
-    const std::string app_name = _state->get_app(app_id)->app_name;
-    if (!check_status(rpc, nullptr, app_name)) {
-        return;
-    }
-
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
     const configuration_balancer_request &request = rpc.request();
     LOG_INFO("get proposal balancer request, gpid(%d.%d)",
              request.gpid.get_app_id(),
@@ -835,10 +836,10 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
-    configuration_restore_request request;
+    configuration_restore_request request_struct;
     configuration_create_app_response response;
-    const std::string &app_name = get_app_name(req, request);
-    if (!check_status_with_msg(req, response, app_name)) {
+    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
+    if (!check_status_with_msg(req, response, request_struct.app_name)) {
         return;
     }
 
@@ -1225,15 +1226,7 @@ void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 {
     int32_t app_id = rpc.request().app_id;
-    if (_state->get_app(app_id) == nullptr) {
-        rpc.response().err = ERR_INVALID_PARAMETERS;
-        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
-        return;
-    }
-    const std::string app_name = _state->get_app(app_id)->app_name;
-    if (!check_status(rpc, nullptr, app_name)) {
-        return;
-    }
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR_F("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;
@@ -1245,15 +1238,7 @@ void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 void meta_service::on_query_backup_status(query_backup_status_rpc rpc)
 {
     int32_t app_id = rpc.request().app_id;
-    if (_state->get_app(app_id) == nullptr) {
-        rpc.response().err = ERR_INVALID_PARAMETERS;
-        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
-        return;
-    }
-    const std::string app_name = _state->get_app(app_id)->app_name;
-    if (!check_status(rpc, nullptr, app_name)) {
-        return;
-    }
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR_F("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;
@@ -1311,6 +1296,9 @@ void meta_service::on_set_max_replica_count(configuration_set_max_replica_count_
                      std::bind(&server_state::set_max_replica_count, _state.get(), rpc),
                      server_state::sStateHash);
 }
+
+#undef GET_APP_NAME_FROM_REQUEST_STRUCT
+#undef GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS
 
 } // namespace replication
 } // namespace dsn

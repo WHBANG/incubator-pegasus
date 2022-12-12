@@ -47,7 +47,11 @@ public:
         _replica_access_controller = make_unique<replica_access_controller>("test");
     }
 
-    bool allowed(dsn::message_ex *msg) { return _replica_access_controller->allowed(msg, false); }
+    bool allowed(dsn::message_ex *msg)
+    {
+        return _replica_access_controller->allowed(msg,
+                                                   security::client_request_replica_type::read);
+    }
 
     void set_replica_users(std::unordered_set<std::string> &&replica_users)
     {

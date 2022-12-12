@@ -29,6 +29,12 @@ DSN_DEFINE_string("security",
                   "",
                   "allowed list of rpc codes for meta_access_controller");
 
+DSN_DEFINE_uint32(
+    "security",
+    update_ranger_policy_interval_sec,
+    5,
+    "The interval seconds meta server to pull the latest access control policy from Ranger server");
+
 meta_access_controller::meta_access_controller(
     std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
 {
@@ -45,7 +51,7 @@ meta_access_controller::meta_access_controller(
         utils::split_args(FLAGS_meta_acl_rpc_allow_list, rpc_code_white_list, ',');
         register_rpc_code_write_list(rpc_code_white_list);
     }
-    _policy_provider = policy_provider;
+    _ranger_policy_provider = policy_provider;
 
     // use ranger policy
     if (!is_disable_ranger_acl()) {
@@ -82,7 +88,20 @@ meta_access_controller::meta_access_controller(
                                      "RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT",
                                      "RPC_BULK_LOAD",
                                      "RPC_GROUP_BULK_LOAD"});
+
+        do_update_ranger_policies();
     }
+}
+
+void meta_access_controller::do_update_ranger_policies()
+{
+    CHECK(_ranger_policy_provider != nullptr, "ranger policy can not null");
+    tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
+                           &_tracker,
+                           [this]() { _ranger_policy_provider->update(); },
+                           std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
+                           0,
+                           std::chrono::milliseconds(1));
 }
 
 bool meta_access_controller::allowed(message_ex *msg, const std::string &app_name)
@@ -108,7 +127,7 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
                user_name,
                msg->rpc_code(),
                database_name);
-    return _policy_provider->allowed(rpc_code, user_name, database_name);
+    return _ranger_policy_provider->allowed(rpc_code, user_name, database_name);
 }
 
 void meta_access_controller::register_rpc_code_write_list(const std::vector<std::string> &rpc_list)

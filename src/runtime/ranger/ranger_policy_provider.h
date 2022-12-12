@@ -106,9 +106,5 @@ private:
                                 const access_type &type);
 };
 
-std::shared_ptr<ranger_policy_provider>
-create_ranger_policy_provider(dsn::replication::meta_service *meta_svc,
-                              const std::string ranger_policy_meta_root);
-
 } // namespace ranger
 } // namespace dsn

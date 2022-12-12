@@ -24,7 +24,7 @@ namespace dsn {
 namespace security {
 replica_access_controller::replica_access_controller(const std::string &name) { _name = name; }
 
-bool replica_access_controller::allowed(message_ex *msg, bool is_read)
+bool replica_access_controller::allowed(message_ex *msg, client_request_replica_type req_type)
 {
     const std::string &user_name = msg->io_session->get_client_username();
     if (is_disable_ranger_acl()) {
@@ -48,8 +48,9 @@ bool replica_access_controller::allowed(message_ex *msg, bool is_read)
     }
 
     // use ranger policy
-    dsn::ranger::access_type acl_type =
-        is_read ? dsn::ranger::access_type::READ : dsn::ranger::access_type::WRITE;
+    dsn::ranger::access_type acl_type = (req_type == client_request_replica_type::read)
+                                            ? dsn::ranger::access_type::READ
+                                            : dsn::ranger::access_type::WRITE;
     {
         utils::auto_read_lock l(_lock);
         return _ranger_policies.allowed(user_name, acl_type);
