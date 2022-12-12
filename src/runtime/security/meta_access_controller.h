@@ -39,16 +39,20 @@ public:
     bool allowed(message_ex *msg, const std::string &app_name = "") override;
 
 private:
+    std::unordered_set<int> _rpc_code_write_list;
+
+    std::shared_ptr<ranger::ranger_policy_provider> _ranger_policy_provider;
+
+    dsn::task_tracker _tracker;
+
     void register_allowed_list(const std::string &rpc_code);
 
     void register_rpc_code_write_list(const std::vector<std::string> &rpc_list);
 
-    std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
-
-    std::unordered_set<int> _rpc_code_write_list;
-
     void parse_ranger_policy_database_name(const std::string &app_name,
                                            std::string &app_name_prefix) override;
+
+    void do_update_ranger_policies();
 };
 } // namespace security
 } // namespace dsn

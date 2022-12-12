@@ -82,6 +82,8 @@ private:
                                      ranger_resource_policy &acl);
 
     void policy_setter(std::vector<policy_item> &policy_list, const rapidjson::Value &d);
+
+    // friend class ranger_resource_policy_manager_test;
 };
 
 } // namespace ranger
