@@ -58,13 +58,6 @@ DSN_TAG_VARIABLE(min_live_node_count_for_unfreeze, FT_MUTABLE);
 DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
                      [](uint64_t min_live_node_count) -> bool { return min_live_node_count > 0; });
 
-#define GET_APP_NAME_FROM_REQUEST_STRUCT(req)                                                      \
-    do {                                                                                           \
-        dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*(req));                   \
-        dsn::unmarshall(copied_req, request_struct);                                               \
-                                                                                                   \
-    } while (0)
-
 #define GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id)                                            \
     do {                                                                                           \
         if (_state->get_app(app_id) == nullptr) {                                                  \
@@ -73,7 +66,7 @@ DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
             return;                                                                                \
         }                                                                                          \
         const std::string app_name = _state->get_app(app_id)->app_name;                            \
-        if (!check_status(rpc, nullptr, app_name)) {                                               \
+        if (!check_status_and_authz(rpc, nullptr, app_name)) {                                     \
             return;                                                                                \
         }                                                                                          \
     } while (0)
@@ -526,10 +519,8 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 // table operations
 void meta_service::on_create_app(dsn::message_ex *req)
 {
-    configuration_create_app_response response;
-    configuration_create_app_request request_struct;
-    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
-    if (!check_status_with_msg(req, response, request_struct.app_name)) {
+    if (!check_status_with_msg(
+            <configuration_create_app_request, configuration_create_app_response>(req))) {
         return;
     }
 
@@ -542,10 +533,8 @@ void meta_service::on_create_app(dsn::message_ex *req)
 
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
-    configuration_drop_app_response response;
-    configuration_drop_app_request request_struct;
-    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
-    if (!check_status_with_msg(req, response, request_struct.app_name)) {
+    if (!check_status_with_msg(
+            <configuration_drop_app_request, configuration_drop_app_response>(req))) {
         return;
     }
 
@@ -623,7 +612,7 @@ void meta_service::on_list_apps(configuration_list_apps_rpc rpc)
 
 void meta_service::on_list_nodes(configuration_list_nodes_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -653,7 +642,7 @@ void meta_service::on_list_nodes(configuration_list_nodes_rpc rpc)
 
 void meta_service::on_query_cluster_info(configuration_cluster_info_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -699,7 +688,7 @@ void meta_service::on_query_configuration_by_index(configuration_query_by_index_
 {
     query_cfg_response &response = rpc.response();
     rpc_address forward_address;
-    if (!check_status(rpc, &forward_address)) {
+    if (!check_status_and_authz(rpc, &forward_address)) {
         if (!forward_address.is_invalid()) {
             partition_configuration config;
             config.primary = forward_address;
@@ -722,7 +711,7 @@ void meta_service::on_query_configuration_by_index(configuration_query_by_index_
 // meta state thread pool
 void meta_service::on_config_sync(configuration_query_by_node_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -744,7 +733,7 @@ void meta_service::on_config_sync(configuration_query_by_node_rpc rpc)
 void meta_service::on_update_configuration(dsn::message_ex *req)
 {
     configuration_update_response response;
-    if (!check_status_with_msg(req, response)) {
+    if (!check_status_and_authz_with_reply(req, response)) {
         return;
     }
 
@@ -773,7 +762,7 @@ void meta_service::on_update_configuration(dsn::message_ex *req)
 
 void meta_service::on_control_meta_level(configuration_meta_control_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -834,10 +823,7 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
-    configuration_restore_request request_struct;
-    configuration_create_app_response response;
-    GET_APP_NAME_FROM_REQUEST_STRUCT(req);
-    if (!check_status_with_msg(req, response, request_struct.app_name)) {
+    if (!check_status_with_msg<configuration_restore_request, configuration_restore_request>(msg)) {
         return;
     }
 
@@ -849,7 +835,7 @@ void meta_service::on_start_restore(dsn::message_ex *req)
 void meta_service::on_add_backup_policy(dsn::message_ex *req)
 {
     configuration_add_backup_policy_response response;
-    if (!check_status_with_msg(req, response)) {
+    if (!check_status_and_authz_with_reply(req, response)) {
         return;
     }
 
@@ -867,7 +853,7 @@ void meta_service::on_add_backup_policy(dsn::message_ex *req)
 
 void meta_service::on_query_backup_policy(query_backup_policy_rpc policy_rpc)
 {
-    if (!check_status(policy_rpc)) {
+    if (!check_status_and_authz(policy_rpc)) {
         return;
     }
 
@@ -885,7 +871,7 @@ void meta_service::on_query_backup_policy(query_backup_policy_rpc policy_rpc)
 
 void meta_service::on_modify_backup_policy(configuration_modify_backup_policy_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -902,7 +888,7 @@ void meta_service::on_modify_backup_policy(configuration_modify_backup_policy_rp
 
 void meta_service::on_report_restore_status(configuration_report_restore_status_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -922,7 +908,7 @@ void meta_service::on_query_restore_status(configuration_query_restore_rpc rpc)
         response.err = ERR_APP_NOT_EXIST;
         return;
     }
-    if (!check_status(rpc, nullptr, app->app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, app->app_name)) {
         return;
     }
 
@@ -933,8 +919,7 @@ void meta_service::on_query_restore_status(configuration_query_restore_rpc rpc)
 
 void meta_service::on_add_duplication(duplication_add_rpc rpc)
 {
-    duplication_add_request request;
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -950,8 +935,7 @@ void meta_service::on_add_duplication(duplication_add_rpc rpc)
 
 void meta_service::on_modify_duplication(duplication_modify_rpc rpc)
 {
-    duplication_modify_request request;
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -967,7 +951,7 @@ void meta_service::on_modify_duplication(duplication_modify_rpc rpc)
 
 void meta_service::on_query_duplication_info(duplication_query_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -980,7 +964,7 @@ void meta_service::on_query_duplication_info(duplication_query_rpc rpc)
 
 void meta_service::on_duplication_sync(duplication_sync_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc)) {
         return;
     }
 
@@ -1025,7 +1009,7 @@ void meta_service::initialize_duplication_service()
 
 void meta_service::update_app_env(app_env_rpc env_rpc)
 {
-    if (!check_status(env_rpc, nullptr, env_rpc.request().app_name)) {
+    if (!check_status_and_authz(env_rpc, nullptr, env_rpc.request().app_name)) {
         return;
     }
 
@@ -1061,7 +1045,7 @@ void meta_service::ddd_diagnose(ddd_diagnose_rpc rpc)
     int32_t app_id = rpc.request().pid.get_app_id();
     if (_state->get_app(app_id) != nullptr) {
         const std::string &app_name = _state->get_app(app_id)->app_name;
-        if (!check_status(rpc, nullptr, app_name)) {
+        if (!check_status_and_authz(rpc, nullptr, app_name)) {
             return;
         }
     }
@@ -1073,7 +1057,7 @@ void meta_service::ddd_diagnose(ddd_diagnose_rpc rpc)
 
 void meta_service::on_start_partition_split(start_split_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1089,7 +1073,7 @@ void meta_service::on_start_partition_split(start_split_rpc rpc)
 
 void meta_service::on_control_partition_split(control_split_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1106,7 +1090,7 @@ void meta_service::on_control_partition_split(control_split_rpc rpc)
 
 void meta_service::on_query_partition_split(query_split_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1120,7 +1104,7 @@ void meta_service::on_query_partition_split(query_split_rpc rpc)
 
 void meta_service::on_register_child_on_meta(register_child_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app.app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app.app_name)) {
         return;
     }
 
@@ -1132,7 +1116,7 @@ void meta_service::on_register_child_on_meta(register_child_rpc rpc)
 
 void meta_service::on_notify_stop_split(notify_stop_split_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1148,7 +1132,7 @@ void meta_service::on_notify_stop_split(notify_stop_split_rpc rpc)
 
 void meta_service::on_query_child_state(query_child_state_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1161,7 +1145,7 @@ void meta_service::on_query_child_state(query_child_state_rpc rpc)
 
 void meta_service::on_start_bulk_load(start_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1175,7 +1159,7 @@ void meta_service::on_start_bulk_load(start_bulk_load_rpc rpc)
 
 void meta_service::on_control_bulk_load(control_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1192,7 +1176,7 @@ void meta_service::on_control_bulk_load(control_bulk_load_rpc rpc)
 
 void meta_service::on_query_bulk_load_status(query_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1206,7 +1190,7 @@ void meta_service::on_query_bulk_load_status(query_bulk_load_rpc rpc)
 
 void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
 
@@ -1253,7 +1237,7 @@ size_t meta_service::get_alive_node_count() const
 
 void meta_service::on_start_manual_compact(start_manual_compact_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1263,7 +1247,7 @@ void meta_service::on_start_manual_compact(start_manual_compact_rpc rpc)
 
 void meta_service::on_query_manual_compact_status(query_manual_compact_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1274,7 +1258,7 @@ void meta_service::on_query_manual_compact_status(query_manual_compact_rpc rpc)
 // ThreadPool: THREAD_POOL_META_SERVER
 void meta_service::on_get_max_replica_count(configuration_get_max_replica_count_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1286,7 +1270,7 @@ void meta_service::on_get_max_replica_count(configuration_get_max_replica_count_
 // ThreadPool: THREAD_POOL_META_SERVER
 void meta_service::on_set_max_replica_count(configuration_set_max_replica_count_rpc rpc)
 {
-    if (!check_status(rpc, nullptr, rpc.request().app_name)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().app_name)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1294,9 +1278,6 @@ void meta_service::on_set_max_replica_count(configuration_set_max_replica_count_
                      std::bind(&server_state::set_max_replica_count, _state.get(), rpc),
                      server_state::sStateHash);
 }
-
-#undef GET_APP_NAME_FROM_REQUEST_STRUCT
-#undef GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS
 
 } // namespace replication
 } // namespace dsn
