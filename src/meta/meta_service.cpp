@@ -527,8 +527,8 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 // table operations
 void meta_service::on_create_app(dsn::message_ex *req)
 {
-    if (!check_status_with_msg(
-            <configuration_create_app_request, configuration_create_app_response>(req))) {
+    if (!check_status_with_msg<configuration_create_app_request, configuration_create_app_response>(
+            req)) {
         return;
     }
 
@@ -541,8 +541,8 @@ void meta_service::on_create_app(dsn::message_ex *req)
 
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
-    if (!check_status_with_msg(
-            <configuration_drop_app_request, configuration_drop_app_response>(req))) {
+    if (!check_status_with_msg<configuration_drop_app_request, configuration_drop_app_response>(
+            req)) {
         return;
     }
 
@@ -580,7 +580,7 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     }
     const std::string &app_name = target_app->app_name;
 
-    if (!check_status_with_msg(req, response, app_name)) {
+    if (!check_status_and_authz_with_reply(req, response, app_name)) {
         return;
     }
     // check new_app_name reasonable.
@@ -831,7 +831,8 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
-    if (!check_status_with_msg<configuration_restore_request, configuration_restore_request>(msg)) {
+    if (!check_status_with_msg<configuration_restore_request, configuration_create_app_response>(
+            req)) {
         return;
     }
 
