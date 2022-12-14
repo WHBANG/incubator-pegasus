@@ -719,7 +719,6 @@ class meta_backup_service_test : public meta_test_base
 protected:
     meta_backup_service_test() : _meta_svc(new fake_receiver_meta_service()), _backup_svc(nullptr)
     {
-        _meta_svc->_access_controller = security::create_meta_access_controller(nullptr);
     }
 
     void SetUp() override

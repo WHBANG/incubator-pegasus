@@ -214,6 +214,7 @@ void server_state::on_query_restore_status(configuration_query_restore_rpc rpc)
     response.err = ERR_OK;
 
     std::shared_ptr<app_state> app = get_app(request.restore_app_id);
+    CHECK(nullptr != app, "app must be valid");
     if (app->status == app_status::AS_DROPPED) {
         response.err = ERR_APP_DROPPED;
     } else {

@@ -61,8 +61,6 @@ void meta_test_base::SetUp()
 
     // recover apps from meta storage
     ASSERT_EQ(_ss->initialize_data_structure(), ERR_OK);
-
-    _ms->_access_controller = security::create_meta_access_controller(nullptr);
 }
 
 void meta_test_base::TearDown()

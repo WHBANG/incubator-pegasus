@@ -28,18 +28,16 @@ bool replica_access_controller::allowed(message_ex *msg, client_request_replica_
 {
     const std::string &user_name = msg->io_session->get_client_username();
     if (is_disable_ranger_acl()) {
-        if (pre_check(user_name)) {
+        if (is_super_user_or_disable_acl(user_name)) {
             return true;
         }
         {
             utils::auto_read_lock l(_lock);
             // If the user didn't specify any ACL, it means this table is publicly accessible to
-            // everyone. This is a backdoor to allow old-version clients to gracefully upgrade.
-            // After
+            // everyone. This is a backdoor to allow old-version clients to gracefully upgrade.After
             // they are finally ensured to be fully upgraded, they can specify some usernames to ACL
-            // and
-            // the table will be truly protected.
-            if (!_users.empty() && _users.find(user_name) == _users.end()) {
+            // and the table will be truly protected.
+            if (!_allowed_users.empty() && _allowed_users.find(user_name) == _allowed_users.end()) {
                 LOG_INFO_F("{}: user_name {} doesn't exist in acls map", _name, user_name);
                 return false;
             }
@@ -72,7 +70,7 @@ void replica_access_controller::update(const std::string &users)
     {
         utils::auto_write_lock l(_lock);
         // This swap operation is in constant time
-        _users.swap(users_set);
+        _allowed_users.swap(users_set);
         _env_users = users;
     }
 }
@@ -91,7 +89,7 @@ void replica_access_controller::update_ranger_policies(std::string &policies)
         _env_policies = policies;
         dsn::json::json_forwarder<ranger::policy_priority_level>::decode(
             dsn::blob::create_from_bytes(std::move(policies)), tmp_policies);
-        _ranger_policies = tmp_policies;
+        _ranger_policies = std::move(tmp_policies);
     }
 }
 
