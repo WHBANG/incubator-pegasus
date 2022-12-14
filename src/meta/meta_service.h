@@ -305,6 +305,7 @@ private:
     friend class policy_context_test;
     friend class server_state_restore_test;
     friend class test::test_checker;
+    friend class fake_receiver_meta_service;
 
     replication_options _opts;
     meta_options _meta_opts;
