@@ -114,7 +114,7 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     const auto user_name = msg->io_session->get_client_username();
 
     if (is_disable_ranger_acl()) {
-        if (pre_check(user_name) ||
+        if (is_super_user_or_disable_acl(user_name) ||
             _rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
             return true;
         }
