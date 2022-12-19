@@ -34,6 +34,8 @@ DSN_DEFINE_uint32(
     update_ranger_policy_interval_sec,
     5,
     "The interval seconds meta server to pull the latest access control policy from Ranger server");
+DSN_DECLARE_bool(enable_acl);
+DSN_DECLARE_bool(enable_ranger_acl);
 
 meta_access_controller::meta_access_controller(
     std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
@@ -41,53 +43,51 @@ meta_access_controller::meta_access_controller(
     // MetaServer serves the allow-list RPC from all users. RPCs unincluded are accessible to only
     // superusers.
     if (utils::is_empty(FLAGS_meta_acl_rpc_allow_list)) {
-        register_rpc_code_write_list(
-            std::vector<std::string>{"RPC_CM_LIST_APPS",
-                                     "RPC_CM_LIST_NODES",
-                                     "RPC_CM_CLUSTER_INFO",
-                                     "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX"});
+        register_allowed_rpc_code_list({"RPC_CM_LIST_APPS",
+                                        "RPC_CM_LIST_NODES",
+                                        "RPC_CM_CLUSTER_INFO",
+                                        "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX"});
     } else {
         std::vector<std::string> rpc_code_white_list;
         utils::split_args(FLAGS_meta_acl_rpc_allow_list, rpc_code_white_list, ',');
-        register_rpc_code_write_list(rpc_code_white_list);
+        register_allowed_rpc_code_list(rpc_code_white_list);
     }
     _ranger_policy_provider = policy_provider;
 
     // use ranger policy
-    if (!is_disable_ranger_acl()) {
-        register_rpc_code_write_list(
-            std::vector<std::string>{"RPC_CM_UPDATE_PARTITION_CONFIGURATION",
-                                     "RPC_CM_CONFIG_SYNC",
-                                     "RPC_CM_DUPLICATION_SYNC",
-                                     "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX",
-                                     "RPC_CM_REPORT_RESTORE_STATUS",
-                                     "RPC_CM_NOTIFY_STOP_SPLIT",
-                                     "RPC_CM_QUERY_CHILD_STATE",
-                                     "RPC_NEGOTIATION",
-                                     "RPC_CALL_RAW_MESSAGE",
-                                     "RPC_CALL_RAW_SESSION_DISCONNECT",
-                                     "RPC_NFS_GET_FILE_SIZE",
-                                     "RPC_NFS_COPY",
-                                     "RPC_FD_FAILURE_DETECTOR_PING",
-                                     "RPC_CALL_RAW_MESSAGE",
-                                     "RPC_CALL_RAW_SESSION_DISCONNECT",
-                                     "RPC_CONFIG_PROPOSAL",
-                                     "RPC_GROUP_CHECK",
-                                     "RPC_QUERY_REPLICA_INFO",
-                                     "RPC_QUERY_LAST_CHECKPOINT_INFO",
-                                     "RPC_PREPARE",
-                                     "RPC_GROUP_CHECK",
-                                     "RPC_QUERY_APP_INFO",
-                                     "RPC_LEARN",
-                                     "RPC_LEARN_COMPLETION_NOTIFY",
-                                     "RPC_LEARN_ADD_LEARNER",
-                                     "RPC_REMOVE_REPLICA",
-                                     "RPC_COLD_BACKUP",
-                                     "RPC_CLEAR_COLD_BACKUP",
-                                     "RPC_SPLIT_NOTIFY_CATCH_UP",
-                                     "RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT",
-                                     "RPC_BULK_LOAD",
-                                     "RPC_GROUP_BULK_LOAD"});
+    if (FLAGS_enable_ranger_acl) {
+        register_allowed_rpc_code_list({"RPC_CM_UPDATE_PARTITION_CONFIGURATION",
+                                        "RPC_CM_CONFIG_SYNC",
+                                        "RPC_CM_DUPLICATION_SYNC",
+                                        "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX",
+                                        "RPC_CM_REPORT_RESTORE_STATUS",
+                                        "RPC_CM_NOTIFY_STOP_SPLIT",
+                                        "RPC_CM_QUERY_CHILD_STATE",
+                                        "RPC_NEGOTIATION",
+                                        "RPC_CALL_RAW_MESSAGE",
+                                        "RPC_CALL_RAW_SESSION_DISCONNECT",
+                                        "RPC_NFS_GET_FILE_SIZE",
+                                        "RPC_NFS_COPY",
+                                        "RPC_FD_FAILURE_DETECTOR_PING",
+                                        "RPC_CALL_RAW_MESSAGE",
+                                        "RPC_CALL_RAW_SESSION_DISCONNECT",
+                                        "RPC_CONFIG_PROPOSAL",
+                                        "RPC_GROUP_CHECK",
+                                        "RPC_QUERY_REPLICA_INFO",
+                                        "RPC_QUERY_LAST_CHECKPOINT_INFO",
+                                        "RPC_PREPARE",
+                                        "RPC_GROUP_CHECK",
+                                        "RPC_QUERY_APP_INFO",
+                                        "RPC_LEARN",
+                                        "RPC_LEARN_COMPLETION_NOTIFY",
+                                        "RPC_LEARN_ADD_LEARNER",
+                                        "RPC_REMOVE_REPLICA",
+                                        "RPC_COLD_BACKUP",
+                                        "RPC_CLEAR_COLD_BACKUP",
+                                        "RPC_SPLIT_NOTIFY_CATCH_UP",
+                                        "RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT",
+                                        "RPC_BULK_LOAD",
+                                        "RPC_GROUP_BULK_LOAD"});
 
         do_update_ranger_policies();
     }
@@ -95,7 +95,7 @@ meta_access_controller::meta_access_controller(
 
 void meta_access_controller::do_update_ranger_policies()
 {
-    CHECK(_ranger_policy_provider != nullptr, "ranger policy can not null");
+    CHECK(_ranger_policy_provider, "ranger policy can not null");
     tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
                            &_tracker,
                            [this]() { _ranger_policy_provider->update(); },
@@ -109,16 +109,13 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     const auto rpc_code = msg->rpc_code().code();
     const auto user_name = msg->io_session->get_client_username();
 
-    if (is_disable_ranger_acl()) {
-        if (is_super_user_or_disable_acl(user_name) ||
-            _rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
-            return true;
-        }
-        return false;
+    if (!FLAGS_enable_ranger_acl) {
+        return !FLAGS_enable_acl || is_super_user(user_name) ||
+               _allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end();
     }
 
     // use ranger policy
-    if (_rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
+    if (_allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end()) {
         return true;
     }
     std::string database_name;
@@ -130,9 +127,10 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     return _ranger_policy_provider->allowed(rpc_code, user_name, database_name);
 }
 
-void meta_access_controller::register_rpc_code_write_list(const std::vector<std::string> &rpc_list)
+void meta_access_controller::register_allowed_rpc_code_list(
+    const std::vector<std::string> &rpc_list)
 {
-    _rpc_code_write_list.clear();
+    _allowed_rpc_code_list.clear();
     for (const auto &rpc_code : rpc_list) {
         auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
         CHECK_NE_MSG(code,
@@ -140,7 +138,7 @@ void meta_access_controller::register_rpc_code_write_list(const std::vector<std:
                      "invalid task code({}) in rpc_code_white_list of security section",
                      rpc_code);
 
-        _rpc_code_write_list.insert(code);
+        _allowed_rpc_code_list.insert(code);
     }
 }
 

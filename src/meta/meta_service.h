@@ -280,7 +280,7 @@ private:
                                            const std::string &app_name = "");
 
     template <typename TReqType, typename TRespType>
-    bool check_status_with_msg(message_ex *msg);
+    bool check_status_and_authz_with_msg(message_ex *msg);
 
     template <typename TRpcHolder>
     bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
@@ -406,9 +406,8 @@ bool meta_service::check_leader_status(TRpcHolder rpc, rpc_address *forward_addr
 }
 
 // when the ranger ACL is enabled, only the leader meta_server will pull ranger policy, so if it is
-// not the leader, _access_controller may be a null pointer, or the master has been cut, and the
-// above policy information may be out of date, so if you use the ranger for acl, need to switch to
-// the leader meta_server first.
+// not the leader, _access_controller may be a null pointer, or a new leader is elected, and the
+// above policy information may be out of date.
 template <typename TRpcHolder>
 bool meta_service::check_status_and_authz(TRpcHolder rpc,
                                           rpc_address *forward_address,
@@ -419,10 +418,10 @@ bool meta_service::check_status_and_authz(TRpcHolder rpc,
     }
     if (!_access_controller->allowed(rpc.dsn_request(), app_name)) {
         rpc.response().err = ERR_ACL_DENY;
-        LOG_INFO_F("reject request with ERR_ACL_DENY, rpc = {}, user_name = {}, app_name = {}.",
+        LOG_INFO_F("not authorized {} to operate on app({}) for user({})",
                    rpc.dsn_request()->rpc_code(),
-                   rpc.dsn_request()->io_session->get_client_username(),
-                   app_name);
+                   app_name,
+                   rpc.dsn_request()->io_session->get_client_username());
         return false;
     }
 
@@ -453,11 +452,11 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
     }
 
     if (!_access_controller->allowed(req, app_name)) {
-        LOG_INFO_F("reject request with ERR_ACL_DENY, rpc = {}, user_name = {}, app_name = {}.",
-                   req->rpc_code(),
-                   req->io_session->get_client_username(),
-                   app_name);
         response_struct.err = ERR_ACL_DENY;
+        LOG_INFO_F("not authorized {} to operate on app({}) for user({})",
+                   req->rpc_code(),
+                   app_name,
+                   req->io_session->get_client_username());
         reply(req, response_struct);
         return false;
     }
@@ -465,7 +464,7 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
 }
 
 template <typename TReqType, typename TRespType>
-bool meta_service::check_status_with_msg(message_ex *msg)
+bool meta_service::check_status_and_authz_with_msg(message_ex *msg)
 {
     TReqType req;
     TRespType resp;
