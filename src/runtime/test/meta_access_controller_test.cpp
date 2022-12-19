@@ -52,9 +52,9 @@ public:
         _meta_access_controller->_super_users.insert(super_user);
     }
 
-    bool pre_check(const std::string &user_name)
+    bool is_super_user_or_disable_acl(const std::string &user_name)
     {
-        return _meta_access_controller->is_super_user_or_disable_acl(user_name);
+        return !FLAGS_enable_acl || _meta_access_controller->is_super_user(user_name);
     }
 
     bool allowed(dsn::message_ex *msg) { return _meta_access_controller->allowed(msg); }
@@ -62,7 +62,7 @@ public:
     std::shared_ptr<access_controller> _meta_access_controller;
 };
 
-TEST_F(meta_access_controller_test, pre_check)
+TEST_F(meta_access_controller_test, is_super_user_or_disable_acl)
 {
     const std::string SUPER_USER_NAME = "super_user";
     struct
@@ -79,7 +79,7 @@ TEST_F(meta_access_controller_test, pre_check)
 
     for (const auto &test : tests) {
         FLAGS_enable_acl = test.enable_acl;
-        ASSERT_EQ(pre_check(test.user_name), test.result);
+        ASSERT_EQ(is_super_user_or_disable_acl(test.user_name), test.result);
     }
 
     FLAGS_enable_acl = origin_enable_acl;

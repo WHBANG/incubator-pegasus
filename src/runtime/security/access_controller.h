@@ -49,10 +49,15 @@ public:
     virtual void update(const std::string &acls) {}
 
     /**
+    * check whether enable ranger acl
+    **/
+    bool is_enable_ranger_acl();
+
+    /**
      * update the access controller policy
      *  policies - the policies from ranger to update
      */
-    virtual void update_ranger_policies(std::string &policies) {}
+    virtual void update_ranger_policies(const std::string &policies) {}
 
     /**
      * check if the message received is allowd to do something.
@@ -68,21 +73,18 @@ public:
     virtual bool allowed(message_ex *msg, const std::string &app_name = "") { return false; }
 
     /**
-    * check if disable ranger acl
-    **/
-    bool is_disable_ranger_acl();
-
-    /**
      * in the case of using ranger, from the app_name parse to database string.
      **/
     virtual void parse_ranger_policy_database_name(const std::string &app_name,
-                                                   std::string &app_name_prefix){};
+                                                   std::string &app_name_prefix)
+    {
+    }
 
 protected:
     /**
-     *  check if disable old acl (not use ranger), or user_name is super_user.
+     *  check if user_name is super_user.
      * */
-    bool is_super_user_or_disable_acl(const std::string &user_name);
+    bool is_super_user(const std::string &user_name);
     friend class meta_access_controller_test;
 
     std::unordered_set<std::string> _super_users;
