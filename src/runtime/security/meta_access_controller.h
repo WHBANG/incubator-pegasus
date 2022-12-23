@@ -34,7 +34,7 @@ namespace security {
 class meta_access_controller : public access_controller
 {
 public:
-    meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
+    meta_access_controller(const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider);
 
     bool allowed(message_ex *msg, const std::string &app_name = "") override;
 
@@ -46,9 +46,6 @@ private:
     dsn::task_tracker _tracker;
 
     void register_allowed_rpc_code_list(const std::vector<std::string> &rpc_list);
-
-    void parse_ranger_policy_database_name(const std::string &app_name,
-                                           std::string &app_name_prefix) override;
 
     void do_update_ranger_policies();
 };

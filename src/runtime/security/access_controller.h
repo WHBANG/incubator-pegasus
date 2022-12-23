@@ -32,8 +32,8 @@ namespace security {
 
 enum class client_request_replica_type
 {
-    read,
-    write
+    KRead,
+    KWrite
 };
 
 class access_controller
@@ -46,7 +46,7 @@ public:
      * update the access controller
      *    acls - the new acls to update
      **/
-    virtual void update(const std::string &acls) {}
+    virtual void update_allowed_users(const std::string &users) {}
 
     /**
     * check whether enable ranger acl
@@ -55,9 +55,8 @@ public:
 
     /**
      * update the access controller policy
-     *  policies - the policies from ranger to update
      */
-    virtual void update_ranger_policies(const std::string &policies) {}
+    virtual void update_policies(const std::string &policies) {}
 
     /**
      * check if the message received is allowd to do something.
@@ -72,14 +71,6 @@ public:
      */
     virtual bool allowed(message_ex *msg, const std::string &app_name = "") { return false; }
 
-    /**
-     * in the case of using ranger, from the app_name parse to database string.
-     **/
-    virtual void parse_ranger_policy_database_name(const std::string &app_name,
-                                                   std::string &app_name_prefix)
-    {
-    }
-
 protected:
     /**
      *  check if user_name is super_user.
@@ -90,8 +81,8 @@ protected:
     std::unordered_set<std::string> _super_users;
 };
 
-std::shared_ptr<access_controller>
-create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
+std::shared_ptr<access_controller> create_meta_access_controller(
+    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider);
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name);
 } // namespace security

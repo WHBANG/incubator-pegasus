@@ -519,8 +519,8 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 // table operations
 void meta_service::on_create_app(dsn::message_ex *req)
 {
-    if (!check_status_and_authz_with_msg<configuration_create_app_request,
-                                         configuration_create_app_response>(req)) {
+    if (!check_status_and_authz_with_reply<configuration_create_app_request,
+                                           configuration_create_app_response>(req)) {
         return;
     }
 
@@ -533,8 +533,8 @@ void meta_service::on_create_app(dsn::message_ex *req)
 
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
-    if (!check_status_and_authz_with_msg<configuration_drop_app_request,
-                                         configuration_drop_app_response>(req)) {
+    if (!check_status_and_authz_with_reply<configuration_drop_app_request,
+                                           configuration_drop_app_response>(req)) {
         return;
     }
 
@@ -578,11 +578,16 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     // when the ranger acl is enabled, ensure that the prefix of new_app_name is consistent with
     // old, or it is empty
     if (_access_controller->is_enable_ranger_acl() && !request.new_app_name.empty()) {
-        std::string app_name_prefix;
-        _access_controller->parse_ranger_policy_database_name(app_name, app_name_prefix);
-        std::string new_app_name_prefix;
-        _access_controller->parse_ranger_policy_database_name(request.new_app_name,
-                                                              new_app_name_prefix);
+        auto parse_ranger_policy_database_name = [](const std::string &app_name) -> std::string {
+            std::vector<std::string> lv;
+            ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+            if (lv.size() == 2) {
+                return lv[0];
+            }
+            return "";
+        };
+        std::string app_name_prefix = parse_ranger_policy_database_name(app_name);
+        std::string new_app_name_prefix = parse_ranger_policy_database_name(request.new_app_name);
         if (app_name_prefix != new_app_name_prefix) {
             response.err = ERR_INVALID_PARAMETERS;
             reply(req, response);
@@ -822,8 +827,8 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
-    if (!check_status_and_authz_with_msg<configuration_restore_request,
-                                         configuration_create_app_response>(req)) {
+    if (!check_status_and_authz_with_reply<configuration_restore_request,
+                                           configuration_create_app_response>(req)) {
         return;
     }
 
