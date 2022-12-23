@@ -28,8 +28,8 @@ class replica_access_controller : public access_controller
 public:
     explicit replica_access_controller(const std::string &name);
     bool allowed(message_ex *msg, client_request_replica_type req_type) override;
-    void update(const std::string &users) override;
-    void update_ranger_policies(const std::string &policies) override;
+    void update_allowed_users(const std::string &users) override;
+    void update_policies(const std::string &policies) override;
 
 private:
     utils::rw_lock_nr _lock; // [

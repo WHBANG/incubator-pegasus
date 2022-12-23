@@ -266,21 +266,25 @@ private:
     int check_leader(dsn::message_ex *req, dsn::rpc_address *forward_address);
     template <typename TRpcHolder>
     int check_leader(TRpcHolder rpc, /*out*/ rpc_address *forward_address);
+    // app_name: when the ranger acl is enabled, some rpc requests need to verify the app_name
     // ret:
-    //    false: check failed
-    //    true:  check succeed
+    //    false: rpc request check failed because check leader failed or acl authentication failed
+    //    true:  rpc request check and authentication succeed
     template <typename TRpcHolder>
     bool check_status_and_authz(TRpcHolder rpc,
                                 /*out*/ rpc_address *forward_address = nullptr,
                                 const std::string &app_name = "");
-
+    // app_name: when the ranger acl is enabled, some rpc requests need to verify the app_name
+    // ret:
+    //    false: rpc request check failed because check leader failed or acl authentication failed
+    //    true:  rpc request check and authentication succeed
     template <typename TRespType>
     bool check_status_and_authz_with_reply(message_ex *req,
                                            TRespType &response_struct,
                                            const std::string &app_name = "");
 
     template <typename TReqType, typename TRespType>
-    bool check_status_and_authz_with_msg(message_ex *msg);
+    bool check_status_and_authz_with_reply(message_ex *msg);
 
     template <typename TRpcHolder>
     bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
@@ -424,7 +428,6 @@ bool meta_service::check_status_and_authz(TRpcHolder rpc,
                    rpc.dsn_request()->io_session->get_client_username());
         return false;
     }
-
     return true;
 }
 
@@ -433,7 +436,6 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
                                                      TRespType &response_struct,
                                                      const std::string &app_name)
 {
-
     int result = check_leader(req, nullptr);
     if (result == 0) {
         return false;
@@ -450,7 +452,6 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
         reply(req, response_struct);
         return false;
     }
-
     if (!_access_controller->allowed(req, app_name)) {
         response_struct.err = ERR_ACL_DENY;
         LOG_INFO_F("not authorized {} to operate on app({}) for user({})",
@@ -464,7 +465,7 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
 }
 
 template <typename TReqType, typename TRespType>
-bool meta_service::check_status_and_authz_with_msg(message_ex *msg)
+bool meta_service::check_status_and_authz_with_reply(message_ex *msg)
 {
     TReqType req;
     TRespType resp;

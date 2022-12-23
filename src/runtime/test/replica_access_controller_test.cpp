@@ -50,7 +50,7 @@ public:
     bool allowed(dsn::message_ex *msg)
     {
         return _replica_access_controller->allowed(msg,
-                                                   security::client_request_replica_type::read);
+                                                   security::client_request_replica_type::KRead);
     }
 
     void set_replica_users(std::unordered_set<std::string> &&replica_users)

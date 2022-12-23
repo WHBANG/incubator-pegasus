@@ -38,7 +38,7 @@ DSN_DECLARE_bool(enable_acl);
 DSN_DECLARE_bool(enable_ranger_acl);
 
 meta_access_controller::meta_access_controller(
-    std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
+    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider)
 {
     // MetaServer serves the allow-list RPC from all users. RPCs unincluded are accessible to only
     // superusers.
@@ -109,17 +109,31 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     const auto rpc_code = msg->rpc_code().code();
     const auto user_name = msg->io_session->get_client_username();
 
+    // when the ranger acl is not enabled, the old acl will be used.In these three cases, the ACL
+    // will be allowed:
+    // 1. enable_acl is false
+    // 2. the user_name is super user
+    // 3. the rpc_code is in _allowed_rpc_code_list
     if (!FLAGS_enable_ranger_acl) {
         return !FLAGS_enable_acl || is_super_user(user_name) ||
                _allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end();
     }
 
-    // use ranger policy
+    // in this case, the ranger acl is enabled. In both cases, the ACL will be allowed:
+    // 1. the rpc_code is in _allowed_rpc_code_list.(usually internal rpc)
+    // 2. the user_name and resource have passed the validation of ranger policy
     if (_allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end()) {
         return true;
     }
-    std::string database_name;
-    parse_ranger_policy_database_name(app_name, database_name);
+    auto parse_ranger_policy_database_name = [](const std::string &app_name) -> std::string {
+        std::vector<std::string> lv;
+        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+        if (lv.size() == 2) {
+            return lv[0];
+        }
+        return "";
+    };
+    std::string database_name = parse_ranger_policy_database_name(app_name);
     LOG_INFO_F("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
                user_name,
                msg->rpc_code(),
@@ -133,24 +147,9 @@ void meta_access_controller::register_allowed_rpc_code_list(
     _allowed_rpc_code_list.clear();
     for (const auto &rpc_code : rpc_list) {
         auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
-        CHECK_NE_MSG(code,
-                     TASK_CODE_INVALID,
-                     "invalid task code({}) in rpc_code_white_list of security section",
-                     rpc_code);
+        CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code({})", rpc_code);
 
         _allowed_rpc_code_list.insert(code);
-    }
-}
-
-void meta_access_controller::parse_ranger_policy_database_name(const std::string &app_name,
-                                                               std::string &app_name_prefix)
-{
-    std::vector<std::string> lv;
-    ::dsn::utils::split_args(app_name.c_str(), lv, '.');
-    if (lv.size() == 2) {
-        app_name_prefix = lv[0];
-    } else {
-        app_name_prefix = "";
     }
 }
 

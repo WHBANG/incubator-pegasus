@@ -50,7 +50,7 @@ bool replica_access_controller::allowed(message_ex *msg, client_request_replica_
     }
 
     // use ranger policy
-    dsn::ranger::access_type acl_type = (req_type == client_request_replica_type::read)
+    dsn::ranger::access_type acl_type = (req_type == client_request_replica_type::KRead)
                                             ? dsn::ranger::access_type::READ
                                             : dsn::ranger::access_type::WRITE;
     {
@@ -59,7 +59,7 @@ bool replica_access_controller::allowed(message_ex *msg, client_request_replica_
     }
 }
 
-void replica_access_controller::update(const std::string &users)
+void replica_access_controller::update_allowed_users(const std::string &users)
 {
     {
         // check to see whether we should update it or not.
@@ -79,7 +79,7 @@ void replica_access_controller::update(const std::string &users)
     }
 }
 
-void replica_access_controller::update_ranger_policies(const std::string &policies)
+void replica_access_controller::update_policies(const std::string &policies)
 {
     {
         utils::auto_read_lock l(_lock);
