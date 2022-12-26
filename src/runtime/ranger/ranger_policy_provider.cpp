@@ -101,6 +101,7 @@ ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *m
         _rpc_match_database_acl, "RPC_CM_START_MANUAL_COMPACT", access_type::CONTROL);
     register_rpc_match_acl(
         _rpc_match_database_acl, "RPC_CM_SET_MAX_REPLICA_COUNT", access_type::CONTROL);
+    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_RENAME_APP", access_type::CONTROL);
 }
 
 void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource,
