@@ -41,14 +41,12 @@ public class TestAdminClient {
 
   @Before
   public void Setup() throws PException {
-    // this.clientOptions =
-    //     ClientOptions.builder()
-    //         .metaServers(this.metaServerList)
-    //         .asyncWorkers(6)
-    //         .enablePerfCounter(false)
-    //         .build();
-
-    this.clientOptions = ClientOptions.create("resource:///pegasus.properties");
+    this.clientOptions =
+        ClientOptions.builder()
+            .metaServers(this.metaServerList)
+            .asyncWorkers(6)
+            .enablePerfCounter(false)
+            .build();
 
     toolsClient = PegasusAdminClientFactory.createClient(this.clientOptions);
   }
@@ -66,13 +64,13 @@ public class TestAdminClient {
         new HashMap<>(),
         this.tableOpTimeoutMs);
 
-    // boolean isAppHealthy = toolsClient.isAppHealthy(appName, this.tableReplicaCount);
+    boolean isAppHealthy = toolsClient.isAppHealthy(appName, this.tableReplicaCount);
 
-    // Assert.assertTrue(isAppHealthy);
+    Assert.assertTrue(isAppHealthy);
 
-    // int fakeReplicaCount = 5;
-    // isAppHealthy = toolsClient.isAppHealthy(appName, fakeReplicaCount);
-    // Assert.assertFalse(isAppHealthy);
+    int fakeReplicaCount = 5;
+    isAppHealthy = toolsClient.isAppHealthy(appName, fakeReplicaCount);
+    Assert.assertFalse(isAppHealthy);
   }
 
   @Test
@@ -81,59 +79,59 @@ public class TestAdminClient {
     testOneCreateApp(appName);
   }
 
-  // @Test
-  // public void testCreateNewAppConsideringMetaForward() throws PException, IllegalAccessException {
-  //   String[] metaServerArray = this.metaServerList.split(",");
-  //   for (int i = 0; i < metaServerArray.length; ++i) {
-  //     PegasusAdminClient realToolClient = (PegasusAdminClient) toolsClient;
-  //     MetaHandler metaHandler = (MetaHandler) FieldUtils.readField(realToolClient, "meta", true);
-  //     MetaSession metaSession = (MetaSession) FieldUtils.readField(metaHandler, "session", true);
-  //     FieldUtils.writeField(metaSession, "curLeader", i, true);
+  @Test
+  public void testCreateNewAppConsideringMetaForward() throws PException, IllegalAccessException {
+    String[] metaServerArray = this.metaServerList.split(",");
+    for (int i = 0; i < metaServerArray.length; ++i) {
+      PegasusAdminClient realToolClient = (PegasusAdminClient) toolsClient;
+      MetaHandler metaHandler = (MetaHandler) FieldUtils.readField(realToolClient, "meta", true);
+      MetaSession metaSession = (MetaSession) FieldUtils.readField(metaHandler, "session", true);
+      FieldUtils.writeField(metaSession, "curLeader", i, true);
 
-  //     String appName = "testMetaForward_" + i;
-  //     testOneCreateApp(appName);
-  //   }
-  // }
+      String appName = "testMetaForward_" + i;
+      testOneCreateApp(appName);
+    }
+  }
 
-  // @Test
-  // public void testIsAppHealthyIfTableNotExists() throws PException {
-  //   // test a not existed app
-  //   String appName = "testIsAppHealthyIfNotExists";
-  //   int replicaCount = 3;
+  @Test
+  public void testIsAppHealthyIfTableNotExists() throws PException {
+    // test a not existed app
+    String appName = "testIsAppHealthyIfNotExists";
+    int replicaCount = 3;
 
-  //   try {
-  //     toolsClient.isAppHealthy(appName, this.tableReplicaCount);
-  //   } catch (PException e) {
-  //     return;
-  //   }
+    try {
+      toolsClient.isAppHealthy(appName, this.tableReplicaCount);
+    } catch (PException e) {
+      return;
+    }
 
-  //   Assert.fail();
-  // }
+    Assert.fail();
+  }
 
-  // @Test
-  // public void testDropApp() throws PException {
-  //   String appName = "testDropApp";
+  @Test
+  public void testDropApp() throws PException {
+    String appName = "testDropApp";
 
-  //   toolsClient.createApp(
-  //       appName,
-  //       this.tablePartitionCount,
-  //       this.tableReplicaCount,
-  //       new HashMap<>(),
-  //       this.tableOpTimeoutMs);
-  //   boolean isAppHealthy = toolsClient.isAppHealthy(appName, this.tableReplicaCount);
-  //   Assert.assertTrue(isAppHealthy);
+    toolsClient.createApp(
+        appName,
+        this.tablePartitionCount,
+        this.tableReplicaCount,
+        new HashMap<>(),
+        this.tableOpTimeoutMs);
+    boolean isAppHealthy = toolsClient.isAppHealthy(appName, this.tableReplicaCount);
+    Assert.assertTrue(isAppHealthy);
 
-  //   toolsClient.dropApp(appName, tableOpTimeoutMs);
+    toolsClient.dropApp(appName, tableOpTimeoutMs);
 
-  //   PegasusClientInterface pClient = PegasusClientFactory.createClient(this.clientOptions);
-  //   try {
-  //     pClient.openTable(appName);
-  //   } catch (PException e) {
-  //     assertThat(e.getMessage(), containsString("No such table"));
-  //     pClient.close();
-  //     return;
-  //   }
-  //   pClient.close();
-  //   Assert.fail("expected PException for openTable");
-  // }
+    PegasusClientInterface pClient = PegasusClientFactory.createClient(this.clientOptions);
+    try {
+      pClient.openTable(appName);
+    } catch (PException e) {
+      assertThat(e.getMessage(), containsString("No such table"));
+      pClient.close();
+      return;
+    }
+    pClient.close();
+    Assert.fail("expected PException for openTable");
+  }
 }

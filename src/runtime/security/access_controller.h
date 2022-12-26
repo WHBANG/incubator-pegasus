@@ -40,30 +40,37 @@ public:
      * update the access controller
      *    acls - the new acls to update
      **/
-    virtual void update(const std::string &acls){};
+    virtual void update(const std::string &acls) {}
 
     /**
      * update the access controller policy
      *  policies - the policies from ranger to update
      */
-    virtual void update_ranger_policies(std::string &policies){};
+    virtual void update_ranger_policies(std::string &policies) {}
 
     /**
      * check if the message received is allowd to do something.
      *   msg - the message received
      **/
-
     virtual bool allowed(message_ex *msg, bool is_read) { return false; }
 
-    virtual bool allowed(message_ex *msg, std::shared_ptr<std::vector<std::string>> match)
-    {
-        return false;
-    }
+    /**
+     *  access_controller preforms acl.
+     *  msg - the message received
+     *  app_name - tables involved in acl
+     */
+    virtual bool allowed(message_ex *msg, const std::string &app_name = "") { return false; }
 
-    /*
-    * check if enable acl
-    */
-    bool pre_check();
+    /**
+    * check if disable ranger acl
+    **/
+    bool is_disable_ranger_acl();
+
+    /**
+     * in the case of using ranger, from the app_name parse to database string.
+     **/
+    virtual void parse_ranger_policy_database_name(const std::string &app_name,
+                                                   std::string &app_name_prefix){};
 
 protected:
     bool pre_check(const std::string &user_name);
@@ -72,7 +79,7 @@ protected:
     std::unordered_set<std::string> _super_users;
 };
 
-std::unique_ptr<access_controller>
+std::shared_ptr<access_controller>
 create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name);

@@ -125,9 +125,9 @@ dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
     _acls.clear();
     ranger_resource_policy default_acl;
     ranger_resource_policy::default_database_resource_builder(default_acl);
-    std::vector<ranger_resource_policy> default_resource_policy{default_acl};
-    _acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
-        enum_to_string(DATABASE), default_resource_policy));
+    ranger_resource_policies_set default_resource_policy{default_acl};
+    _acls.insert(std::pair<std::string, ranger_resource_policies_set>(enum_to_string(DATABASE),
+                                                                      default_resource_policy));
     const rapidjson::Value &policies = d["policies"];
 
     CHECK_DOCUMENT_IS_NON_ARRAY(policies);
@@ -192,10 +192,10 @@ void ranger_resource_policy_manager::resource_policy_constructor(resource_type t
         }
     }
     if (_acls.find(enum_to_string(type)) == _acls.end()) {
-        _acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
-            enum_to_string(type), std::vector<ranger_resource_policy>{acl}));
+        _acls.insert(std::pair<std::string, ranger_resource_policies_set>(
+            enum_to_string(type), ranger_resource_policies_set{acl}));
     } else {
-        _acls[enum_to_string(type)].emplace_back(acl);
+        _acls[enum_to_string(type)].emplace(acl);
     }
 }
 
