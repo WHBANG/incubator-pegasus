@@ -47,7 +47,9 @@ ENUM_END(resource_type)
 
 ENUM_TYPE_SERIALIZATION(resource_type, UNKNOWN)
 
-using resource_acls_type = std::map<std::string, std::vector<ranger_resource_policy>>;
+using ranger_resource_policies_set =
+    std::unordered_set<ranger_resource_policy, hash_ranger_resource_policy>;
+using resource_acls_type = std::map<std::string, ranger_resource_policies_set>;
 class ranger_resource_policy_manager
 {
 public:
@@ -55,13 +57,13 @@ public:
 
     ~ranger_resource_policy_manager() = default;
 
-    // Periodically pull a policy from ranger.
+    // periodically pull a policy from ranger.
     dsn::error_code load_ranger_resource_policy();
 
     resource_acls_type get_acls();
 
 private:
-    // Record the policy version number to determine whether to update the policy
+    // record the policy version number to determine whether to update the policy
     int _ranger_service_version;
 
     // ACLs for access_controller
@@ -69,10 +71,10 @@ private:
 
     DEFINE_JSON_SERIALIZATION(_ranger_service_version, _acls);
 
-    // String to enum(access_type)
+    // string to enum(access_type)
     std::map<std::string, access_type> _access_type_map;
 
-    // Parse json
+    // parse json
     dsn::error_code parse(const std::string &resp);
 
     void resource_policy_constructor(resource_type resource_type,

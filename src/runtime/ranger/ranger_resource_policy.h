@@ -85,7 +85,7 @@ struct policy_priority_level
     DEFINE_JSON_SERIALIZATION(allow_policy, allow_policy_exclude, deny_policy, deny_policy_exclude);
 
     // whetherer user has permission
-    bool allowed(const std::string &user_name, const access_type &acl_type)
+    bool allowed(const std::string &user_name, const access_type &acl_type) const
     {
         for (const auto &deny_item : deny_policy) {
             if (deny_item.accesses.find(acl_type) != deny_item.accesses.end() &&
@@ -146,6 +146,22 @@ public:
 
     // ranger support priority policy list.
     static std::vector<std::string> _policy_item_list;
+
+    bool operator==(const ranger_resource_policy &other_policy) const
+    {
+        if (_resource_name == other_policy._resource_name)
+            return true;
+        else
+            return false;
+    }
+};
+
+struct hash_ranger_resource_policy
+{
+    std::size_t operator()(const ranger_resource_policy &policy) const
+    {
+        return std::hash<std::string>()(policy._resource_name);
+    }
 };
 
 } // namespace security

@@ -61,17 +61,17 @@ bool access_controller::pre_check(const std::string &user_name)
     return false;
 }
 
-bool access_controller::pre_check() { return !FLAGS_enable_ranger_acl; }
+bool access_controller::is_disable_ranger_acl() { return !FLAGS_enable_ranger_acl; }
 
-std::unique_ptr<access_controller>
+std::shared_ptr<access_controller>
 create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
 {
-    return make_unique<meta_access_controller>(policy_provider);
+    return std::make_shared<meta_access_controller>(policy_provider);
 }
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name)
 {
-    return make_unique<replica_access_controller>(name);
+    return std::make_unique<replica_access_controller>(name);
 }
 } // namespace security
 } // namespace dsn

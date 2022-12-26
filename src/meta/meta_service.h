@@ -115,6 +115,7 @@ public:
     mss::meta_storage *get_meta_storage() const { return _meta_storage.get(); }
 
     server_state *get_server_state() { return _state.get(); }
+    security::access_controller *get_access_controller() { return _access_controller.get(); }
     server_load_balancer *get_balancer() { return _balancer.get(); }
     partition_guardian *get_partition_guardian() { return _partition_guardian.get(); }
     dist::block_service::block_service_manager &get_block_service_manager()
@@ -271,27 +272,18 @@ private:
     template <typename TRpcHolder>
     bool check_status(TRpcHolder rpc,
                       /*out*/ rpc_address *forward_address = nullptr,
-                      /*out*/ std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
+                      const std::string &app_name = "");
+
     template <typename TRespType>
-    bool
-    check_status_with_msg(message_ex *req,
-                          TRespType &response_struct,
-                          /*out*/ std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
+    bool check_status_with_msg(message_ex *req,
+                               TRespType &response_struct,
+                               const std::string &app_name = "");
 
-    template <typename TReqType, typename TRespType>
-    bool check_status_with_app_name(message_ex *req,
-                                    TReqType &request_struct,
-                                    TRespType &response_struct,
-                                    std::shared_ptr<std::vector<std::string>> match_ptr);
+    template <typename TRespType>
+    std::string get_app_name(message_ex *req, TRespType &request_struct);
 
     template <typename TRpcHolder>
-    bool check_status_with_app_name(TRpcHolder rpc,
-                                    std::shared_ptr<std::vector<std::string>> match_ptr);
-
-    template <typename TRpcHolder>
-    bool check_status_with_app_name(TRpcHolder rpc,
-                                    std::shared_ptr<std::vector<std::string>> match_ptr,
-                                    const std::string app_name);
+    bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
 
     error_code remote_storage_initialize();
     bool check_freeze() const;
@@ -359,9 +351,10 @@ private:
 
     dsn::task_tracker _tracker;
 
-    std::unique_ptr<security::access_controller> _access_controller;
+    std::shared_ptr<security::access_controller> _access_controller;
 
-    std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
+    // use apache ranger for access control, which is nullptr when not use
+    std::shared_ptr<ranger::ranger_policy_provider> _ranger_policy_provider;
 
     // indicate which operation is processeding in meta server
     std::atomic<meta_op_status> _meta_op_status;
@@ -392,9 +385,7 @@ int meta_service::check_leader(TRpcHolder rpc, rpc_address *forward_address)
 }
 
 template <typename TRpcHolder>
-bool meta_service::check_status(TRpcHolder rpc,
-                                rpc_address *forward_address,
-                                std::shared_ptr<std::vector<std::string>> match_ptr)
+bool meta_service::check_leader_status(TRpcHolder rpc, rpc_address *forward_address)
 {
     int result = check_leader(rpc, forward_address);
     if (result == 0)
@@ -410,8 +401,19 @@ bool meta_service::check_status(TRpcHolder rpc,
         LOG_INFO_F("reject request with {}", rpc.response().err);
         return false;
     }
+    return true;
+}
 
-    if (!_access_controller->allowed(rpc.dsn_request(), match_ptr)) {
+template <typename TRpcHolder>
+bool meta_service::check_status(TRpcHolder rpc,
+                                rpc_address *forward_address,
+                                const std::string &app_name)
+{
+    if (!check_leader_status(rpc, forward_address)) {
+        return false;
+    }
+
+    if (!_access_controller->allowed(rpc.dsn_request(), app_name)) {
         rpc.response().err = ERR_ACL_DENY;
         LOG_INFO("reject request with ERR_ACL_DENY");
         return false;
@@ -423,7 +425,7 @@ bool meta_service::check_status(TRpcHolder rpc,
 template <typename TRespType>
 bool meta_service::check_status_with_msg(message_ex *req,
                                          TRespType &response_struct,
-                                         std::shared_ptr<std::vector<std::string>> match_ptr)
+                                         const std::string &app_name)
 {
     int result = check_leader(req, nullptr);
     if (result == 0) {
@@ -442,7 +444,7 @@ bool meta_service::check_status_with_msg(message_ex *req,
         return false;
     }
 
-    if (!_access_controller->allowed(req, match_ptr)) {
+    if (!_access_controller->allowed(req, app_name)) {
         LOG_INFO("reject request with ERR_ACL_DENY");
         response_struct.err = ERR_ACL_DENY;
         reply(req, response_struct);
@@ -452,94 +454,12 @@ bool meta_service::check_status_with_msg(message_ex *req,
     return true;
 }
 
-template <typename TReqType, typename TRespType>
-bool meta_service::check_status_with_app_name(message_ex *req,
-                                              TReqType &request_struct,
-                                              TRespType &response_struct,
-                                              std::shared_ptr<std::vector<std::string>> match_ptr)
+template <typename TRespType>
+std::string meta_service::get_app_name(message_ex *req, TRespType &request_struct)
 {
-    if (_access_controller->pre_check()) {
-        return true;
-    }
-
-    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
-        dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
-        dsn::unmarshall(copied_req, request_struct);
-        std::string app_name = request_struct.app_name;
-        std::vector<std::string> lv;
-        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
-        if (lv.size() != 2) {
-            response_struct.err = ERR_INVALID_APP_NAME;
-            reply(req, response_struct);
-            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
-            return false;
-        }
-        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
-            response_struct.err = ERR_ACL_DENY;
-            reply(req, response_struct);
-            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
-                          lv[0],
-                          lv[1]);
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename TRpcHolder>
-bool meta_service::check_status_with_app_name(TRpcHolder rpc,
-                                              std::shared_ptr<std::vector<std::string>> match_ptr)
-{
-    if (_access_controller->pre_check()) {
-        return true;
-    }
-
-    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
-        const std::string app_name = rpc.request().app_name;
-        std::vector<std::string> lv;
-        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
-        if (lv.size() != 2) {
-            rpc.response().err = ERR_INVALID_APP_NAME;
-            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
-            return false;
-        }
-        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
-            rpc.response().err = ERR_ACL_DENY;
-            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
-                          lv[0],
-                          lv[1]);
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename TRpcHolder>
-bool meta_service::check_status_with_app_name(TRpcHolder rpc,
-                                              std::shared_ptr<std::vector<std::string>> match_ptr,
-                                              const std::string app_name)
-{
-    if (_access_controller->pre_check()) {
-        return true;
-    }
-
-    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
-        std::vector<std::string> lv;
-        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
-        if (lv.size() != 2) {
-            rpc.response().err = ERR_INVALID_APP_NAME;
-            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
-            return false;
-        }
-        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
-            rpc.response().err = ERR_ACL_DENY;
-            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
-                          lv[0],
-                          lv[1]);
-            return false;
-        }
-    }
-    return true;
+    dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
+    dsn::unmarshall(copied_req, request_struct);
+    return request_struct.app_name;
 }
 
 } // namespace replication
