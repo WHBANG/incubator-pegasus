@@ -36,7 +36,7 @@ class meta_access_controller : public access_controller
 public:
     meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider);
 
-    bool allowed(message_ex *msg, std::shared_ptr<std::vector<std::string>> match);
+    bool allowed(message_ex *msg, const std::string &app_name = "") override;
 
 private:
     void register_allowed_list(const std::string &rpc_code);
@@ -46,6 +46,9 @@ private:
     std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
 
     std::unordered_set<int> _rpc_code_write_list;
+
+    void parse_ranger_policy_database_name(const std::string &app_name,
+                                           std::string &app_name_prefix) override;
 };
 } // namespace security
 } // namespace dsn

@@ -27,7 +27,7 @@ replica_access_controller::replica_access_controller(const std::string &name) { 
 bool replica_access_controller::allowed(message_ex *msg, bool is_read)
 {
     const std::string &user_name = msg->io_session->get_client_username();
-    if (pre_check()) {
+    if (is_disable_ranger_acl()) {
         if (pre_check(user_name)) {
             return true;
         }
