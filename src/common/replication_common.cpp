@@ -42,11 +42,6 @@ DSN_DEFINE_int32("replication",
                  5,
                  "concurrent bulk load downloading replica count");
 
-DSN_DEFINE_uint32("replication",
-                  update_ranger_policy_interval_s,
-                  5,
-                  "every this period(ms) the meta server will do load ranger policy");
-
 /**
  * Empty write is used for flushing WAL log entry which is submit asynchronously.
  * Make sure it can work well if you diable it.
@@ -117,8 +112,6 @@ replication_options::replication_options()
     learn_app_max_concurrent_count = 5;
 
     cold_backup_checkpoint_reserve_minutes = 10;
-
-    update_ranger_policy_interval_s = 5;
 }
 
 replication_options::~replication_options() {}
@@ -410,8 +403,6 @@ void replication_options::initialize()
     max_concurrent_bulk_load_downloading_count = FLAGS_max_concurrent_bulk_load_downloading_count;
 
     CHECK(replica_helper::load_meta_servers(meta_servers), "invalid meta server config");
-
-    update_ranger_policy_interval_s = FLAGS_update_ranger_policy_interval_s;
 
     sanity_check();
 }

@@ -1230,7 +1230,8 @@ void backup_service::start()
     start_create_policy_meta_root(after_create_policy_meta_root);
 }
 
-void backup_service::add_backup_policy(dsn::message_ex *msg)
+void backup_service::add_backup_policy(dsn::message_ex *msg,
+                                       std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     configuration_add_backup_policy_request request;
     configuration_add_backup_policy_response response;
@@ -1264,6 +1265,20 @@ void backup_service::add_backup_policy(dsn::message_ex *msg)
                             request.policy_name);
                 response.err = ERR_INVALID_PARAMETERS;
                 response.hint_message = "invalid app " + std::to_string(app_id);
+                _meta_svc->reply_data(msg, response);
+                msg->release_ref();
+                return;
+            }
+            int splitter = app->app_name.find_first_of('.');
+            std::string app_name_prefix = app->app_name.substr(0, splitter);
+            if (match_ptr && find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+                find(match_ptr->begin(), match_ptr->end(), app_name_prefix) == match_ptr->end()) {
+                LOG_ERROR_F("app_id({}) add backup policy({}) failed with ERR_ACL_DENY",
+                            app_id,
+                            request.policy_name);
+                response.err = ERR_ACL_DENY;
+                response.hint_message =
+                    std::to_string(app_id) + ": app add backup policy failed with ERR_ACL_DENY";
                 _meta_svc->reply_data(msg, response);
                 msg->release_ref();
                 return;
@@ -1466,7 +1481,8 @@ void backup_service::query_backup_policy(query_backup_policy_rpc rpc)
     }
 }
 
-void backup_service::modify_backup_policy(configuration_modify_backup_policy_rpc rpc)
+void backup_service::modify_backup_policy(configuration_modify_backup_policy_rpc rpc,
+                                          std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     const configuration_modify_backup_policy_request &request = rpc.request();
     configuration_modify_backup_policy_response &response = rpc.response();
@@ -1500,10 +1516,18 @@ void backup_service::modify_backup_policy(configuration_modify_backup_policy_rpc
         for (const auto &appid : request.add_appids) {
             const auto &app = _state->get_app(appid);
             // TODO: if app is dropped, how to process
+            int splitter = app->app_name.find_first_of('.');
+            std::string app_name_prefix = app->app_name.substr(0, splitter);
             if (app == nullptr) {
                 LOG_WARNING("%s: add app to policy failed, because invalid app(%d), ignore it",
                             cur_policy.policy_name.c_str(),
                             appid);
+            } else if (match_ptr &&
+                       find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+                       find(match_ptr->begin(), match_ptr->end(), app_name_prefix) ==
+                           match_ptr->end()) {
+                LOG_WARNING("%s: add app to policy failed with ERR_ACL_DENY, ignore it",
+                            cur_policy.policy_name.c_str());
             } else {
                 valid_app_ids_to_add.emplace_back(appid);
                 id_to_app_names.insert(std::make_pair(appid, app->app_name));

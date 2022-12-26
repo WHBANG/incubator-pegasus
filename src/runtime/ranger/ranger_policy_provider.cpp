@@ -20,12 +20,11 @@
 #include <memory>
 #include <string>
 
-#include "utils/fmt_logging.h"
 #include "common/replication.codes.h"
-#include "runtime/task/async_calls.h"
 #include "common/replica_envs.h"
-
 #include "ranger_policy_provider.h"
+#include "runtime/task/async_calls.h"
+#include "utils/fmt_logging.h"
 
 namespace dsn {
 namespace ranger {
@@ -117,18 +116,18 @@ void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource
     resource.insert(std::make_pair(code, type));
 }
 
-bool ranger_policy_provider::allowed(int rpc_code,
-                                     std::string &name,
-                                     std::shared_ptr<std::vector<std::string>> match)
+bool ranger_policy_provider::allowed(const int rpc_code,
+                                     const std::string &name,
+                                     std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     {
         utils::auto_read_lock l(_global_policies_lock);
         if (_rpc_match_global_acl.find(rpc_code) != _rpc_match_global_acl.end()) {
             for (auto &item : _global_policies) {
                 access_type type = _rpc_match_global_acl[rpc_code];
-                if (item.policies.allowed(name, type)) {
-                    if (match) {
-                        match->assign(item.global_values.begin(), item.global_values.end());
+                if (item._policies.allowed(name, type)) {
+                    if (match_ptr) {
+                        match_ptr->assign(item._global_values.begin(), item._global_values.end());
                     }
                     return true;
                 }
@@ -143,9 +142,10 @@ bool ranger_policy_provider::allowed(int rpc_code,
         if (_rpc_match_database_acl.find(rpc_code) != _rpc_match_database_acl.end()) {
             for (auto &item : _database_policies) {
                 access_type type = _rpc_match_database_acl[rpc_code];
-                if (item.policies.allowed(name, type)) {
-                    if (match) {
-                        match->assign(item.database_values.begin(), item.database_values.end());
+                if (item._policies.allowed(name, type)) {
+                    if (match_ptr) {
+                        match_ptr->assign(item._database_values.begin(),
+                                          item._database_values.end());
                     }
                     return true;
                 }
@@ -229,7 +229,7 @@ void ranger_policy_provider::start_sync_ranger_policies()
 dsn::error_code ranger_policy_provider::sync_policies_to_remote_storage()
 {
     dsn::error_code err;
-    dsn::blob value = json::json_forwarder<resource_acls_type>::encode(_manager->acls);
+    dsn::blob value = json::json_forwarder<resource_acls_type>::encode(_manager->get_acls());
     _meta_svc->get_remote_storage()->set_data(
         _ranger_policy_meta_root, value, LPC_CM_GET_RANGER_POLICY, [this, &err](dsn::error_code e) {
             err = e;
@@ -262,7 +262,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
     {
         utils::auto_write_lock l(_global_policies_lock);
         _global_policies.clear();
-        _global_policies.swap(_manager->acls[enum_to_string(resource_type::GLOBAL)]);
+        _global_policies.swap(_manager->get_acls()[enum_to_string(resource_type::GLOBAL)]);
         dsn::blob value =
             json::json_forwarder<std::vector<ranger_resource_policy>>::encode(_global_policies);
         LOG_DEBUG_F("update global_policies cahce, value = {}", value.to_string());
@@ -270,7 +270,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
     {
         utils::auto_write_lock l(_database_policies_lock);
         _database_policies.clear();
-        _database_policies.swap(_manager->acls[enum_to_string(resource_type::DATABASE)]);
+        _database_policies.swap(_manager->get_acls()[enum_to_string(resource_type::DATABASE)]);
         dsn::blob value =
             json::json_forwarder<std::vector<ranger_resource_policy>>::encode(_database_policies);
         LOG_DEBUG_F("update database_policies cahce, value = {}", value.to_string());
@@ -280,11 +280,11 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
 
 dsn::error_code ranger_policy_provider::sync_policies_to_apps()
 {
-    if (_manager->acls.count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
+    if (_manager->get_acls().count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
         LOG_DEBUG_F("database_table is null");
         return dsn::ERR_OK;
     }
-    auto &table_policies = _manager->acls[enum_to_string(resource_type::DATABASE_TABLE)];
+    auto table_policies = _manager->get_acls()[enum_to_string(resource_type::DATABASE_TABLE)];
 
     dsn::blob value =
         json::json_forwarder<std::vector<ranger_resource_policy>>::encode(table_policies);
@@ -324,19 +324,19 @@ dsn::error_code ranger_policy_provider::sync_policies_to_apps()
         bool has_match_policy = false;
         for (const auto &policy : table_policies) {
             // a policy was matched
-            if ((std::find(policy.database_values.begin(),
-                           policy.database_values.end(),
-                           app_name_prefix_match) == policy.database_values.end())) {
+            if ((std::find(policy._database_values.begin(),
+                           policy._database_values.end(),
+                           app_name_prefix_match) == policy._database_values.end())) {
                 continue;
             }
-            if ((std::find(policy.table_values.begin(), policy.table_values.end(), "*") !=
-                 policy.table_values.end()) ||
-                (std::find(policy.table_values.begin(), policy.table_values.end(), app_name) !=
-                 policy.table_values.end())) {
+            if ((std::find(policy._table_values.begin(), policy._table_values.end(), "*") !=
+                 policy._table_values.end()) ||
+                (std::find(policy._table_values.begin(), policy._table_values.end(), app_name) !=
+                 policy._table_values.end())) {
                 has_match_policy = true;
                 req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_SET);
                 req->__set_values(std::vector<std::string>{
-                    json::json_forwarder<policy_priority_level>::encode(policy.policies)
+                    json::json_forwarder<policy_priority_level>::encode(policy._policies)
                         .to_string()});
                 dsn::replication::update_app_env_rpc rpc(std::move(req), LPC_CM_GET_RANGER_POLICY);
                 _meta_svc->get_server_state()->set_app_envs(rpc);

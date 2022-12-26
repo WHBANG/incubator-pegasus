@@ -1352,7 +1352,8 @@ void server_state::do_app_recall(std::shared_ptr<app_state> &app)
         app_path, value, LPC_META_STATE_HIGH, after_recall_app);
 }
 
-void server_state::recall_app(dsn::message_ex *msg)
+void server_state::recall_app(dsn::message_ex *msg,
+                              std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     configuration_recall_app_request request;
     configuration_recall_app_response response;
@@ -1376,8 +1377,22 @@ void server_state::recall_app(dsn::message_ex *msg)
             else
                 response.err = ERR_APP_EXIST;
         } else {
+            int splitter = target_app->app_name.find_first_of('.');
+            std::string app_name_prefix = target_app->app_name.substr(0, splitter);
+            splitter = request.new_app_name.find_first_of('.');
+            std::string new_app_name_prefix = target_app->app_name.substr(0, splitter);
             if (has_seconds_expired(target_app->expire_second)) {
                 response.err = ERR_APP_NOT_EXIST;
+            } else if (match_ptr &&
+                       find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+                       find(match_ptr->begin(), match_ptr->end(), app_name_prefix) ==
+                           match_ptr->end()) {
+                response.err = ERR_ACL_DENY;
+            } else if (match_ptr && request.new_app_name != "" &&
+                       find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+                       find(match_ptr->begin(), match_ptr->end(), new_app_name_prefix) ==
+                           match_ptr->end()) {
+                response.err = ERR_INVALID_PARAMETERS;
             } else {
                 std::string &new_app_name =
                     (request.new_app_name == "") ? target_app->app_name : request.new_app_name;
@@ -1407,11 +1422,11 @@ void server_state::recall_app(dsn::message_ex *msg)
 
 void server_state::list_apps(const configuration_list_apps_request &request,
                              configuration_list_apps_response &response,
-                             std::shared_ptr<std::vector<std::string>> match)
+                             std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     LOG_DEBUG("list app request, status(%d)", request.status);
     bool match_all = false;
-    if (!match || find(match->begin(), match->end(), "*") != match->end()) {
+    if (!match_ptr || find(match_ptr->begin(), match_ptr->end(), "*") != match_ptr->end()) {
         match_all = true;
     }
     zauto_read_lock l(_lock);
@@ -1423,7 +1438,8 @@ void server_state::list_apps(const configuration_list_apps_request &request,
             } else {
                 int splitter = app.app_name.find_first_of('.');
                 std::string app_name_prefix = app.app_name.substr(0, splitter);
-                if (find(match->begin(), match->end(), app_name_prefix) != match->end()) {
+                if (find(match_ptr->begin(), match_ptr->end(), app_name_prefix) !=
+                    match_ptr->end()) {
                     response.infos.push_back(app);
                 }
             }
@@ -1785,7 +1801,8 @@ void server_state::drop_partition(std::shared_ptr<app_state> &app, int pidx)
     CHECK_EQ((pc.partition_flags & pc_flags::dropped), 0);
     request.config.partition_flags |= pc_flags::dropped;
 
-    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the ballot.
+    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the
+    // ballot.
     // Actually it is necessary. Coz we may send a proposal due to the old DDD state
     // and laterly a update_config may arrive.
     // An updated ballot annouces a previous state is INVALID and all actions taken
@@ -2097,7 +2114,8 @@ server_state::construct_apps(const std::vector<query_app_info_response> &query_a
                 // created, and it will NEVER change even if the app is dropped/recalled...
                 if (info != *old_info) // app_info::operator !=
                 {
-                    // compatible for app.duplicating different between primary and secondaries in
+                    // compatible for app.duplicating different between primary and secondaries
+                    // in
                     // 2.1.x, 2.2.x and 2.3.x release
                     CHECK(app_info_compatible_equal(info, *old_info),
                           "conflict app info from ({}) for id({}): new_info({}), old_info({})",
@@ -2297,11 +2315,11 @@ server_state::sync_apps_from_replica_nodes(const std::vector<dsn::rpc_address> &
             [replica_rpc, i, &replica_nodes, &query_replica_errors, &query_replica_responses](
                 error_code err) mutable {
                 auto resp = replica_rpc.response();
-                LOG_INFO(
-                    "received query replica response from node(%s), err(%s), replicas_count(%d)",
-                    replica_nodes[i].to_string(),
-                    err.to_string(),
-                    (int)resp.replicas.size());
+                LOG_INFO("received query replica response from node(%s), err(%s), "
+                         "replicas_count(%d)",
+                         replica_nodes[i].to_string(),
+                         err.to_string(),
+                         (int)resp.replicas.size());
                 query_replica_errors[i] = err;
                 if (err == dsn::ERR_OK) {
                     query_replica_responses[i] = std::move(resp);
@@ -2346,12 +2364,12 @@ server_state::sync_apps_from_replica_nodes(const std::vector<dsn::rpc_address> &
         }
     }
 
-    LOG_INFO(
-        "sync apps and replicas from replica nodes done, succeed_count = %d, failed_count = %d, "
-        "skip_bad_nodes = %s",
-        succeed_count,
-        failed_count,
-        (skip_bad_nodes ? "true" : "false"));
+    LOG_INFO("sync apps and replicas from replica nodes done, succeed_count = %d, failed_count "
+             "= %d, "
+             "skip_bad_nodes = %s",
+             succeed_count,
+             failed_count,
+             (skip_bad_nodes ? "true" : "false"));
 
     if (failed_count > 0 && !skip_bad_nodes) {
         return dsn::ERR_TRY_AGAIN;
@@ -2418,10 +2436,10 @@ bool server_state::can_run_balancer()
     for (auto iter = _nodes.begin(); iter != _nodes.end();) {
         if (!iter->second.alive()) {
             if (iter->second.partition_count() != 0) {
-                LOG_INFO(
-                    "don't do replica migration coz dead node(%s) has %d partitions not removed",
-                    iter->second.addr().to_string(),
-                    iter->second.partition_count());
+                LOG_INFO("don't do replica migration coz dead node(%s) has %d partitions not "
+                         "removed",
+                         iter->second.addr().to_string(),
+                         iter->second.partition_count());
                 return false;
             }
             _nodes.erase(iter++);
@@ -3312,23 +3330,23 @@ void server_state::set_max_replica_count(configuration_set_max_replica_count_rpc
         response.err = ERR_STATE_FREEZED;
         response.hint_message =
             "current meta function level is freezed, since there are too few alive nodes";
-        LOG_ERROR_F(
-            "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
-            app_name,
-            app_id,
-            response.err.to_string(),
-            response.hint_message);
+        LOG_ERROR_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
+                    "message={}",
+                    app_name,
+                    app_id,
+                    response.err.to_string(),
+                    response.hint_message);
         return;
     }
 
     if (!validate_target_max_replica_count(new_max_replica_count, response.hint_message)) {
         response.err = ERR_INVALID_PARAMETERS;
-        LOG_WARNING_F(
-            "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
-            app_name,
-            app_id,
-            response.err.to_string(),
-            response.hint_message);
+        LOG_WARNING_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
+                      "message={}",
+                      app_name,
+                      app_id,
+                      response.err.to_string(),
+                      response.hint_message);
         return;
     }
 

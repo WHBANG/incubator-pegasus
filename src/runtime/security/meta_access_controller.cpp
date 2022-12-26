@@ -16,7 +16,6 @@
 // under the License.
 
 #include "meta_access_controller.h"
-
 #include "runtime/rpc/network.h"
 #include "runtime/rpc/rpc_message.h"
 #include "utils/flags.h"
@@ -25,52 +24,83 @@
 
 namespace dsn {
 namespace security {
+DSN_DEFINE_string("security",
+                  meta_acl_rpc_allow_list,
+                  "",
+                  "allowed list of rpc codes for meta_access_controller");
 
 meta_access_controller::meta_access_controller(
     std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
 {
+    // MetaServer serves the allow-list RPC from all users. RPCs unincluded are accessible to only
+    // superusers.
+    if (utils::is_empty(FLAGS_meta_acl_rpc_allow_list)) {
+        register_rpc_code_write_list(
+            std::vector<std::string>{"RPC_CM_LIST_APPS",
+                                     "RPC_CM_LIST_NODES",
+                                     "RPC_CM_CLUSTER_INFO",
+                                     "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX"});
+    } else {
+        std::vector<std::string> rpc_code_white_list;
+        utils::split_args(FLAGS_meta_acl_rpc_allow_list, rpc_code_white_list, ',');
+        register_rpc_code_write_list(rpc_code_white_list);
+    }
     _policy_provider = policy_provider;
-    register_rpc_code_write_list("RPC_CM_UPDATE_PARTITION_CONFIGURATION");
-    register_rpc_code_write_list("RPC_CM_CONFIG_SYNC");
-    register_rpc_code_write_list("RPC_CM_DUPLICATION_SYNC");
-    register_rpc_code_write_list("RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX");
-    register_rpc_code_write_list("RPC_CM_REPORT_RESTORE_STATUS");
-    register_rpc_code_write_list("RPC_CM_NOTIFY_STOP_SPLIT");
-    register_rpc_code_write_list("RPC_CM_QUERY_CHILD_STATE");
-    register_rpc_code_write_list("RPC_NEGOTIATION");
-    register_rpc_code_write_list("RPC_CALL_RAW_MESSAGE");
-    register_rpc_code_write_list("RPC_CALL_RAW_SESSION_DISCONNECT");
-    register_rpc_code_write_list("RPC_NFS_GET_FILE_SIZE");
-    register_rpc_code_write_list("RPC_NFS_COPY");
-    register_rpc_code_write_list("RPC_FD_FAILURE_DETECTOR_PING");
-    register_rpc_code_write_list("RPC_CALL_RAW_MESSAGE");
-    register_rpc_code_write_list("RPC_CALL_RAW_SESSION_DISCONNECT");
-    register_rpc_code_write_list("RPC_CONFIG_PROPOSAL");
-    register_rpc_code_write_list("RPC_GROUP_CHECK");
-    register_rpc_code_write_list("RPC_QUERY_REPLICA_INFO");
-    register_rpc_code_write_list("RPC_QUERY_LAST_CHECKPOINT_INFO");
-    register_rpc_code_write_list("RPC_PREPARE");
-    register_rpc_code_write_list("RPC_GROUP_CHECK");
-    register_rpc_code_write_list("RPC_QUERY_APP_INFO");
-    register_rpc_code_write_list("RPC_LEARN");
-    register_rpc_code_write_list("RPC_LEARN_COMPLETION_NOTIFY");
-    register_rpc_code_write_list("RPC_LEARN_ADD_LEARNER");
-    register_rpc_code_write_list("RPC_REMOVE_REPLICA");
-    register_rpc_code_write_list("RPC_COLD_BACKUP");
-    register_rpc_code_write_list("RPC_CLEAR_COLD_BACKUP");
-    register_rpc_code_write_list("RPC_SPLIT_NOTIFY_CATCH_UP");
-    register_rpc_code_write_list("RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT");
-    register_rpc_code_write_list("RPC_BULK_LOAD");
-    register_rpc_code_write_list("RPC_GROUP_BULK_LOAD");
+
+    // use ranger policy
+    if (!pre_check()) {
+        register_rpc_code_write_list(
+            std::vector<std::string>{"RPC_CM_UPDATE_PARTITION_CONFIGURATION",
+                                     "RPC_CM_CONFIG_SYNC",
+                                     "RPC_CM_DUPLICATION_SYNC",
+                                     "RPC_CM_QUERY_PARTITION_CONFIG_BY_INDEX",
+                                     "RPC_CM_REPORT_RESTORE_STATUS",
+                                     "RPC_CM_NOTIFY_STOP_SPLIT",
+                                     "RPC_CM_QUERY_CHILD_STATE",
+                                     "RPC_NEGOTIATION",
+                                     "RPC_CALL_RAW_MESSAGE",
+                                     "RPC_CALL_RAW_SESSION_DISCONNECT",
+                                     "RPC_NFS_GET_FILE_SIZE",
+                                     "RPC_NFS_COPY",
+                                     "RPC_FD_FAILURE_DETECTOR_PING",
+                                     "RPC_CALL_RAW_MESSAGE",
+                                     "RPC_CALL_RAW_SESSION_DISCONNECT",
+                                     "RPC_CONFIG_PROPOSAL",
+                                     "RPC_GROUP_CHECK",
+                                     "RPC_QUERY_REPLICA_INFO",
+                                     "RPC_QUERY_LAST_CHECKPOINT_INFO",
+                                     "RPC_PREPARE",
+                                     "RPC_GROUP_CHECK",
+                                     "RPC_QUERY_APP_INFO",
+                                     "RPC_LEARN",
+                                     "RPC_LEARN_COMPLETION_NOTIFY",
+                                     "RPC_LEARN_ADD_LEARNER",
+                                     "RPC_REMOVE_REPLICA",
+                                     "RPC_COLD_BACKUP",
+                                     "RPC_CLEAR_COLD_BACKUP",
+                                     "RPC_SPLIT_NOTIFY_CATCH_UP",
+                                     "RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT",
+                                     "RPC_BULK_LOAD",
+                                     "RPC_GROUP_BULK_LOAD"});
+    }
 }
 
 bool meta_access_controller::allowed(message_ex *msg,
                                      std::shared_ptr<std::vector<std::string>> match)
 {
-    auto rpc_code = msg->rpc_code().code();
-    auto user_name = msg->io_session->get_client_username();
+    const auto rpc_code = msg->rpc_code().code();
+    const auto user_name = msg->io_session->get_client_username();
 
-    if (pre_check() || _rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
+    if (pre_check()) {
+        if (pre_check(user_name) ||
+            _rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
+            return true;
+        }
+        return false;
+    }
+
+    // use ranger policy
+    if (_rpc_code_write_list.find(rpc_code) != _rpc_code_write_list.end()) {
         return true;
     }
     LOG_INFO_F("access controller with user_name = {}, rpc = {}, rpc_code = {}",
@@ -81,15 +111,18 @@ bool meta_access_controller::allowed(message_ex *msg,
     return _policy_provider->allowed(rpc_code, user_name, match);
 }
 
-void meta_access_controller::register_rpc_code_write_list(const std::string &rpc_code)
+void meta_access_controller::register_rpc_code_write_list(const std::vector<std::string> &rpc_list)
 {
-    auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
-    CHECK_NE_MSG(code,
-                 TASK_CODE_INVALID,
-                 "invalid task code({}) in rpc_code_white_list of security section",
-                 rpc_code);
+    _rpc_code_write_list.clear();
+    for (const auto &rpc_code : rpc_list) {
+        auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
+        CHECK_NE_MSG(code,
+                     TASK_CODE_INVALID,
+                     "invalid task code({}) in rpc_code_white_list of security section",
+                     rpc_code);
 
-    _rpc_code_write_list.insert(code);
+        _rpc_code_write_list.insert(code);
+    }
 }
 
 } // namespace security
