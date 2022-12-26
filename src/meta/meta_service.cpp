@@ -547,7 +547,7 @@ void meta_service::on_drop_app(dsn::message_ex *req)
 
 void meta_service::on_rename_app(configuration_rename_app_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    if (!check_status_and_authz(rpc, nullptr, rpc.request().old_app_name)) {
         return;
     }
 
