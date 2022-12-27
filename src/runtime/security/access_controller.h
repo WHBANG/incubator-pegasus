@@ -75,7 +75,7 @@ protected:
     /**
      *  check if user_name is super_user.
      * */
-    bool is_super_user(const std::string &user_name);
+    bool is_super_user(const std::string &user_name) const;
     friend class meta_access_controller_test;
 
     std::unordered_set<std::string> _super_users;

@@ -29,13 +29,6 @@
 namespace dsn {
 namespace ranger {
 
-std::shared_ptr<ranger_policy_provider>
-create_ranger_policy_provider(dsn::replication::meta_service *meta_svc,
-                              const std::string ranger_policy_meta_root)
-{
-    return make_unique<ranger_policy_provider>(meta_svc, ranger_policy_meta_root);
-}
-
 ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *meta_svc,
                                                const std::string &ranger_policy_meta_root)
     : _ranger_policy_meta_root(ranger_policy_meta_root),

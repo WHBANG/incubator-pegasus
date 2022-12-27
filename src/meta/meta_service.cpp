@@ -580,8 +580,19 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     if (_access_controller->is_enable_ranger_acl() && !request.new_app_name.empty()) {
         auto parse_ranger_policy_database_name = [](const std::string &app_name) -> std::string {
             std::vector<std::string> lv;
-            ::dsn::utils::split_args(app_name.c_str(), lv, '.');
-            if (lv.size() == 2) {
+            std::size_t previous = 0;
+            std::size_t current = app_name.find('.');
+            while (current != std::string::npos) {
+                if (current > previous) {
+                    lv.emplace_back(app_name.substr(previous, current - previous));
+                }
+                if (lv.size() > 2) {
+                    return "";
+                }
+                previous = current + 1;
+                current = app_name.find('.', previous);
+            }
+            if (previous != app_name.size() && lv.size() == 1) {
                 return lv[0];
             }
             return "";
