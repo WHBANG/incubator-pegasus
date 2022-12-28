@@ -38,7 +38,7 @@ DSN_DECLARE_bool(enable_acl);
 DSN_DECLARE_bool(enable_ranger_acl);
 
 meta_access_controller::meta_access_controller(
-    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider)
+    const std::shared_ptr<ranger::ranger_resource_policy_manager> &policy_manager)
 {
     // MetaServer serves the allow-list RPC from all users. RPCs unincluded are accessible to only
     // superusers.
@@ -52,7 +52,7 @@ meta_access_controller::meta_access_controller(
         utils::split_args(FLAGS_meta_acl_rpc_allow_list, rpc_code_white_list, ',');
         register_allowed_rpc_code_list(rpc_code_white_list);
     }
-    _ranger_policy_provider = policy_provider;
+    _ranger_resource_policy_manager = policy_manager;
 
     // use ranger policy
     if (FLAGS_enable_ranger_acl) {
@@ -95,10 +95,10 @@ meta_access_controller::meta_access_controller(
 
 void meta_access_controller::do_update_ranger_policies()
 {
-    CHECK(_ranger_policy_provider, "ranger policy can not null");
+    CHECK(_ranger_resource_policy_manager, "ranger policy can not null");
     tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
                            &_tracker,
-                           [this]() { _ranger_policy_provider->update(); },
+                           [this]() { _ranger_resource_policy_manager->update(); },
                            std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
                            0,
                            std::chrono::milliseconds(1));
@@ -149,7 +149,7 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
                 user_name,
                 msg->rpc_code(),
                 database_name);
-    return _ranger_policy_provider->allowed(rpc_code, user_name, database_name);
+    return _ranger_resource_policy_manager->allowed(rpc_code, user_name, database_name);
 }
 
 void meta_access_controller::register_allowed_rpc_code_list(

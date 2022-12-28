@@ -55,9 +55,9 @@ bool access_controller::is_super_user(const std::string &user_name) const
 }
 
 std::shared_ptr<access_controller> create_meta_access_controller(
-    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider)
+    const std::shared_ptr<ranger::ranger_resource_policy_manager> &policy_manager)
 {
-    return std::make_shared<meta_access_controller>(policy_provider);
+    return std::make_shared<meta_access_controller>(policy_manager);
 }
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name)

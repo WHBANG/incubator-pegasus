@@ -58,17 +58,16 @@ ENUM_TYPE_SERIALIZATION(resource_type, UNKNOWN)
 using ranger_resource_policies_set =
     std::unordered_set<ranger_resource_policy, hash_ranger_resource_policy>;
 using resource_acls_type = std::map<std::string, ranger_resource_policies_set>;
-
 using rpc_match_acl_type = std::unordered_map<int, ranger::access_type>;
 
-class ranger_policy_provider
+class ranger_resource_policy_manager
 {
 
 public:
-    ranger_policy_provider(dsn::replication::meta_service *meta_svc,
-                           const std::string &ranger_policy_meta_root);
+    ranger_resource_policy_manager(dsn::replication::meta_service *meta_svc,
+                                   const std::string &ranger_policy_meta_root);
 
-    ~ranger_policy_provider() = default;
+    ~ranger_resource_policy_manager() = default;
 
     // update ranger policy.
     void update();
