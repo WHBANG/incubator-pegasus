@@ -26,7 +26,6 @@
 #include "meta/meta_service.h"
 #include "meta/server_state.h"
 #include "ranger_resource_policy.h"
-#include "ranger_resource_policy_manager.h"
 #include "runtime/api_task.h"
 #include "runtime/task/task_tracker.h"
 #include "utils/error_code.h"
@@ -39,6 +38,26 @@ class server_state;
 }
 
 namespace ranger {
+
+enum resource_type
+{
+    GLOBAL = 0,
+    DATABASE,
+    DATABASE_TABLE,
+    UNKNOWN,
+};
+
+ENUM_BEGIN(resource_type, UNKNOWN)
+ENUM_REG(GLOBAL)
+ENUM_REG(DATABASE)
+ENUM_REG(DATABASE_TABLE)
+ENUM_END(resource_type)
+
+ENUM_TYPE_SERIALIZATION(resource_type, UNKNOWN)
+
+using ranger_resource_policies_set =
+    std::unordered_set<ranger_resource_policy, hash_ranger_resource_policy>;
+using resource_acls_type = std::map<std::string, ranger_resource_policies_set>;
 
 using rpc_match_acl_type = std::unordered_map<int, ranger::access_type>;
 
@@ -58,8 +77,6 @@ public:
     bool allowed(const int rpc_code, const std::string &user_name, const std::string &app_name);
 
 private:
-    std::unique_ptr<ranger_resource_policy_manager> _manager;
-
     dsn::task_tracker _tracker;
 
     // the path where policies is saved in remote storage.
@@ -104,6 +121,29 @@ private:
     void register_rpc_match_acl(rpc_match_acl_type &resource,
                                 const std::string &rpc_code,
                                 const access_type &type);
+
+    // record the policy version number to determine whether to update the policy
+    int _ranger_service_version;
+
+    // ACLs for access_controller
+    resource_acls_type _acls;
+
+    DEFINE_JSON_SERIALIZATION(_ranger_service_version, _acls);
+
+    // string to enum(access_type)
+    std::map<std::string, access_type> _access_type_map;
+
+    // parse json
+    dsn::error_code parse(const std::string &resp);
+
+    void resource_policy_constructor(resource_type resource_type,
+                                     const rapidjson::Value &d,
+                                     ranger_resource_policy &acl);
+
+    void policy_setter(std::vector<policy_item> &policy_list, const rapidjson::Value &d);
+
+    // periodically pull a policy from ranger.
+    dsn::error_code load_ranger_resource_policy();
 };
 
 } // namespace ranger
