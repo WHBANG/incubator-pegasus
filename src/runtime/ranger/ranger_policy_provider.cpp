@@ -19,15 +19,55 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "common/replication.codes.h"
 #include "common/replica_envs.h"
 #include "ranger_policy_provider.h"
 #include "runtime/task/async_calls.h"
+#include "utils/api_utilities.h"
+#include "utils/flags.h"
 #include "utils/fmt_logging.h"
+#include "utils/process_utils.h"
 
 namespace dsn {
 namespace ranger {
+
+DSN_DEFINE_string("ranger", ranger_service_url, "", "ranger server url");
+DSN_DEFINE_string("ranger", ranger_service_name, "", "use policy name");
+DSN_DEFINE_string("ranger",
+                  ranger_legacy_table_database_mapping_rule,
+                  "default",
+                  "the policy used by legacy tables after the ACL is enabled");
+DSN_DEFINE_bool("ranger", mandatory_enable_acl, "false", "mandatory use ranger policy");
+
+#define CHECK_DOCUMENT_HAS_MEMBER(document, member)                                                \
+    do {                                                                                           \
+        if (!document.IsObject() || !document.HasMember(member)) {                                 \
+            return dsn::ERR_RANGER_PARSE_ACL;                                                      \
+        }                                                                                          \
+    } while (0)
+
+#define CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(document, member)                                    \
+    do {                                                                                           \
+        if (!document.IsObject() || !document.HasMember(member)) {                                 \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
+
+#define CHECK_DOCUMENT_IS_NON_ARRAY(document)                                                      \
+    do {                                                                                           \
+        if (!document.IsArray() || document.Size() == 0) {                                         \
+            return dsn::ERR_RANGER_PARSE_ACL;                                                      \
+        }                                                                                          \
+    } while (0)
+
+#define CHECK_DOCUMENT_IS_NON_ARRAY_RETURN_VOID(document)                                          \
+    do {                                                                                           \
+        if (!document.IsArray() || document.Size() == 0) {                                         \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
 
 ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *meta_svc,
                                                const std::string &ranger_policy_meta_root)
@@ -35,7 +75,6 @@ ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *m
       _load_ranger_policy_retry_delay_ms(10000),
       _meta_svc(meta_svc)
 {
-    _manager = make_unique<ranger_resource_policy_manager>();
     // RESOURCE_TYPE::GLOBAL - metadata
     register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_LIST_NODES", access_type::METADATA);
     register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_CLUSTER_INFO", access_type::METADATA);
@@ -95,6 +134,22 @@ ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *m
     register_rpc_match_acl(
         _rpc_match_database_acl, "RPC_CM_SET_MAX_REPLICA_COUNT", access_type::CONTROL);
     register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_RENAME_APP", access_type::CONTROL);
+
+#define ADD_ACL_ITEM(x) _access_type_map.insert(std::pair<std::string, access_type>(#x, x))
+
+    ADD_ACL_ITEM(READ);
+    ADD_ACL_ITEM(WRITE);
+    ADD_ACL_ITEM(CREATE);
+    ADD_ACL_ITEM(DROP);
+    ADD_ACL_ITEM(LIST);
+    ADD_ACL_ITEM(METADATA);
+    ADD_ACL_ITEM(CONTROL);
+    ADD_ACL_ITEM(ALL);
+
+    CHECK(_acls.empty(), "ranger acls must be empty.");
+    _ranger_service_version = 0;
+
+#undef ADD_ACL_ITEM
 }
 
 void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource,
@@ -152,7 +207,7 @@ bool ranger_policy_provider::allowed(const int rpc_code,
 
 void ranger_policy_provider::update()
 {
-    dsn::error_code err_code = _manager->load_ranger_resource_policy();
+    dsn::error_code err_code = load_ranger_resource_policy();
     if (err_code == dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE) {
         LOG_DEBUG_F("No need to update ACLs policies with error code = {}", err_code);
         err_code = sync_policies_to_apps();
@@ -222,7 +277,7 @@ void ranger_policy_provider::start_sync_ranger_policies()
 dsn::error_code ranger_policy_provider::sync_policies_to_remote_storage()
 {
     dsn::error_code err;
-    dsn::blob value = json::json_forwarder<resource_acls_type>::encode(_manager->get_acls());
+    dsn::blob value = json::json_forwarder<resource_acls_type>::encode(_acls);
     _meta_svc->get_remote_storage()->set_data(
         _ranger_policy_meta_root, value, LPC_CM_GET_RANGER_POLICY, [this, &err](dsn::error_code e) {
             err = e;
@@ -255,7 +310,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
     {
         utils::auto_write_lock l(_global_policies_lock);
         _global_policies.clear();
-        _global_policies.swap(_manager->get_acls()[enum_to_string(resource_type::GLOBAL)]);
+        _global_policies.swap(_acls[enum_to_string(resource_type::GLOBAL)]);
         dsn::blob value =
             json::json_forwarder<ranger_resource_policies_set>::encode(_global_policies);
         LOG_DEBUG_F("update global_policies cahce, value = {}", value.to_string());
@@ -263,7 +318,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
     {
         utils::auto_write_lock l(_database_policies_lock);
         _database_policies.clear();
-        _database_policies.swap(_manager->get_acls()[enum_to_string(resource_type::DATABASE)]);
+        _database_policies.swap(_acls[enum_to_string(resource_type::DATABASE)]);
         dsn::blob value =
             json::json_forwarder<ranger_resource_policies_set>::encode(_database_policies);
         LOG_DEBUG_F("update database_policies cahce, value = {}", value.to_string());
@@ -273,11 +328,11 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
 
 dsn::error_code ranger_policy_provider::sync_policies_to_apps()
 {
-    if (_manager->get_acls().count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
+    if (_acls.count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
         LOG_DEBUG_F("database_table is null");
         return dsn::ERR_OK;
     }
-    auto table_policies = _manager->get_acls()[enum_to_string(resource_type::DATABASE_TABLE)];
+    auto table_policies = _acls[enum_to_string(resource_type::DATABASE_TABLE)];
 
     dsn::blob value = json::json_forwarder<ranger_resource_policies_set>::encode(table_policies);
     LOG_DEBUG_F("table policy value = {}", value.to_string());
@@ -353,5 +408,157 @@ dsn::error_code ranger_policy_provider::sync_policies_to_apps()
     return dsn::ERR_OK;
 }
 
-} // namespace security
+dsn::error_code ranger_policy_provider::load_ranger_resource_policy()
+{
+    std::string cmd = "curl " + std::string(FLAGS_ranger_service_url) + "/" +
+                      std::string(FLAGS_ranger_service_name);
+    std::stringstream resp;
+
+    if (dsn::utils::pipe_execute(cmd.c_str(), resp) != 0) {
+        // get policy failed from ranger
+        if (FLAGS_mandatory_enable_acl) {
+            // clear all policy,todo
+            LOG_ERROR_F("get policy failed, clear all policy.");
+        } else {
+            // use outdated policy
+            LOG_WARNING_F("get policy failed, use outdataed policy.");
+        }
+        return dsn::ERR_RANGER_HTTP_GET;
+    }
+    return parse(resp.str());
+}
+
+dsn::error_code ranger_policy_provider::parse(const std::string &resp)
+{
+    rapidjson::Document d;
+    d.Parse(resp.c_str());
+    CHECK_DOCUMENT_HAS_MEMBER(d, "policies");
+    // get policy update version
+    CHECK_DOCUMENT_HAS_MEMBER(d, "policyVersion");
+    int ranger_service_version = d["policyVersion"].GetInt();
+
+    if (_ranger_service_version == ranger_service_version) {
+        LOG_DEBUG_F("ranger service version: {} VS {}, no need to update policy.",
+                    _ranger_service_version,
+                    ranger_service_version);
+        return dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE;
+    }
+    if (_ranger_service_version == 0) {
+        _ranger_service_version = ranger_service_version;
+    }
+    _acls.clear();
+    ranger_resource_policy default_acl;
+    ranger_resource_policy::default_database_resource_builder(default_acl);
+    ranger_resource_policies_set default_resource_policy{default_acl};
+    _acls.insert(std::pair<std::string, ranger_resource_policies_set>(enum_to_string(DATABASE),
+                                                                      default_resource_policy));
+    const rapidjson::Value &policies = d["policies"];
+
+    CHECK_DOCUMENT_IS_NON_ARRAY(policies);
+    for (const auto &p : policies.GetArray()) {
+        CHECK_DOCUMENT_HAS_MEMBER(p, "isEnabled");
+        CHECK_DOCUMENT_HAS_MEMBER(p, "resources");
+        // 2. only parse 'isEnabled' policy
+        if (p["isEnabled"].IsBool() && p["isEnabled"].GetBool()) {
+            // 1. parse resource type
+            std::map<std::string, std::set<std::string>> type_map;
+
+            for (const auto &t : p["resources"].GetObject()) {
+                std::set<std::string> values;
+                for (const auto &v : (t.value)["values"].GetArray()) {
+                    values.insert(v.GetString());
+                }
+                type_map.insert(
+                    std::pair<std::string, std::set<std::string>>(t.name.GetString(), values));
+            }
+
+            ranger_resource_policy acl;
+            if (type_map.size() == 1) {
+                if (type_map.find("global") != type_map.end()) {
+                    acl._global_values = type_map["global"];
+                    resource_policy_constructor(resource_type::GLOBAL, p, acl);
+                } else if (type_map.find("database") != type_map.end()) {
+                    acl._database_values = type_map["database"];
+                    resource_policy_constructor(resource_type::DATABASE, p, acl);
+                } else {
+                    return dsn::ERR_RANGER_PARSE_ACL;
+                }
+            } else if (type_map.size() == 2 && type_map.find("database") != type_map.end() &&
+                       type_map.find("table") != type_map.end()) {
+                acl._database_values = type_map["database"];
+                acl._table_values = type_map["table"];
+                resource_policy_constructor(resource_type::DATABASE_TABLE, p, acl);
+            } else {
+                return dsn::ERR_RANGER_PARSE_ACL;
+            }
+        }
+    }
+    return dsn::ERR_OK;
+}
+
+void ranger_policy_provider::resource_policy_constructor(resource_type type,
+                                                         const rapidjson::Value &d,
+                                                         ranger_resource_policy &acl)
+{
+    CHECK(
+        resource_type::UNKNOWN != type, "resouce type is unknown, type = {}", enum_to_string(type));
+    CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(d, "name");
+    acl._resource_name = d["name"].GetString();
+    for (const auto &policy : ranger_resource_policy::_policy_item_list) {
+        if (policy == "policyItems") {
+            policy_setter(acl._policies.allow_policy, d["policyItems"]);
+        } else if (policy == "denyPolicyItems") {
+            policy_setter(acl._policies.deny_policy, d["denyPolicyItems"]);
+        } else if (policy == "allowExceptions") {
+            policy_setter(acl._policies.allow_policy_exclude, d["allowExceptions"]);
+        } else {
+            policy_setter(acl._policies.deny_policy_exclude, d["denyExceptions"]);
+        }
+    }
+    if (_acls.find(enum_to_string(type)) == _acls.end()) {
+        _acls.insert(std::pair<std::string, ranger_resource_policies_set>(
+            enum_to_string(type), ranger_resource_policies_set{acl}));
+    } else {
+        _acls[enum_to_string(type)].emplace(acl);
+    }
+}
+
+void ranger_policy_provider::policy_setter(std::vector<policy_item> &policy_list,
+                                           const rapidjson::Value &d)
+{
+    CHECK(policy_list.empty(), "ranger policy list must be empty.");
+    CHECK_DOCUMENT_IS_NON_ARRAY_RETURN_VOID(d);
+    for (auto &item : d.GetArray()) {
+        CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(item, "accesses");
+        CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(item, "users");
+        CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(item, "groups");
+        CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(item, "roles");
+        policy_item it;
+        for (const auto &access : item["accesses"].GetArray()) {
+            if (access["isAllowed"].GetBool()) {
+                std::string str_type = access["type"].GetString();
+                std::transform(str_type.begin(), str_type.end(), str_type.begin(), toupper);
+                access_type type = _access_type_map[str_type];
+                it.accesses.insert(type);
+            }
+        }
+        for (const auto &user : item["users"].GetArray()) {
+            it.users.insert(user.GetString());
+        }
+        for (const auto &group : item["groups"].GetArray()) {
+            it.groups.insert(group.GetString());
+        }
+        for (const auto &role : item["roles"].GetArray()) {
+            it.roles.insert(role.GetString());
+        }
+        policy_list.emplace_back(it);
+    }
+}
+
+#undef CHECK_DOCUMENT_HAS_MEMBER
+#undef CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID
+#undef CHECK_DOCUMENT_IS_NON_ARRAY
+#undef CHECK_DOCUMENT_IS_NON_ARRAY_RETURN_VOID
+
+} // namespace ranger
 } // namespace dsn
