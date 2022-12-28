@@ -281,10 +281,10 @@ void meta_service::start_service()
                          server_state::sStateHash);
     }
 
-    _ranger_policy_provider = std::make_shared<ranger::ranger_policy_provider>(
+    _ranger_resource_policy_manager = std::make_shared<ranger::ranger_resource_policy_manager>(
         this, meta_options::concat_path_unix_style(_cluster_root, "ranger_policy_meta_root"));
 
-    _access_controller = security::create_meta_access_controller(_ranger_policy_provider);
+    _access_controller = security::create_meta_access_controller(_ranger_resource_policy_manager);
 
     tasking::enqueue_timer(LPC_META_STATE_NORMAL,
                            nullptr,
