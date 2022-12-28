@@ -23,7 +23,7 @@
 
 #include "common/replication.codes.h"
 #include "common/replica_envs.h"
-#include "ranger_policy_provider.h"
+#include "ranger_resource_policy_manager.h"
 #include "runtime/task/async_calls.h"
 #include "utils/api_utilities.h"
 #include "utils/flags.h"
@@ -69,8 +69,8 @@ DSN_DEFINE_bool("ranger", mandatory_enable_acl, "false", "mandatory use ranger p
         }                                                                                          \
     } while (0)
 
-ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *meta_svc,
-                                               const std::string &ranger_policy_meta_root)
+ranger_resource_policy_manager::ranger_resource_policy_manager(
+    dsn::replication::meta_service *meta_svc, const std::string &ranger_policy_meta_root)
     : _ranger_policy_meta_root(ranger_policy_meta_root),
       _load_ranger_policy_retry_delay_ms(10000),
       _meta_svc(meta_svc)
@@ -152,9 +152,9 @@ ranger_policy_provider::ranger_policy_provider(dsn::replication::meta_service *m
 #undef ADD_ACL_ITEM
 }
 
-void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource,
-                                                    const std::string &rpc_code,
-                                                    const access_type &type)
+void ranger_resource_policy_manager::register_rpc_match_acl(rpc_match_acl_type &resource,
+                                                            const std::string &rpc_code,
+                                                            const access_type &type)
 {
     auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
     CHECK_NE_MSG(code,
@@ -165,9 +165,9 @@ void ranger_policy_provider::register_rpc_match_acl(rpc_match_acl_type &resource
     resource.insert(std::make_pair(code, type));
 }
 
-bool ranger_policy_provider::allowed(const int rpc_code,
-                                     const std::string &user_name,
-                                     const std::string &database_name)
+bool ranger_resource_policy_manager::allowed(const int rpc_code,
+                                             const std::string &user_name,
+                                             const std::string &database_name)
 {
     {
         utils::auto_read_lock l(_global_policies_lock);
@@ -205,7 +205,7 @@ bool ranger_policy_provider::allowed(const int rpc_code,
     return false;
 }
 
-void ranger_policy_provider::update()
+void ranger_resource_policy_manager::update()
 {
     dsn::error_code err_code = load_ranger_resource_policy();
     if (err_code == dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE) {
@@ -226,7 +226,7 @@ void ranger_policy_provider::update()
     }
 }
 
-void ranger_policy_provider::create_ranger_policy_root(dsn::task_ptr callback)
+void ranger_resource_policy_manager::create_ranger_policy_root(dsn::task_ptr callback)
 {
     LOG_DEBUG_F("create ranger policy meta root({}) on remote_storage",
                 _ranger_policy_meta_root.c_str());
@@ -243,7 +243,8 @@ void ranger_policy_provider::create_ranger_policy_root(dsn::task_ptr callback)
                 dsn::tasking::enqueue(
                     LPC_CM_GET_RANGER_POLICY,
                     &_tracker,
-                    std::bind(&ranger_policy_provider::create_ranger_policy_root, this, callback),
+                    std::bind(
+                        &ranger_resource_policy_manager::create_ranger_policy_root, this, callback),
                     0,
                     _load_ranger_policy_retry_delay_ms);
             } else {
@@ -252,7 +253,7 @@ void ranger_policy_provider::create_ranger_policy_root(dsn::task_ptr callback)
         });
 }
 
-void ranger_policy_provider::start_sync_ranger_policies()
+void ranger_resource_policy_manager::start_sync_ranger_policies()
 {
     LOG_DEBUG_F("start to sync rannger policies to remote storage");
     dsn::error_code err = sync_policies_to_remote_storage();
@@ -274,7 +275,7 @@ void ranger_policy_provider::start_sync_ranger_policies()
     }
 }
 
-dsn::error_code ranger_policy_provider::sync_policies_to_remote_storage()
+dsn::error_code ranger_resource_policy_manager::sync_policies_to_remote_storage()
 {
     dsn::error_code err;
     dsn::blob value = json::json_forwarder<resource_acls_type>::encode(_acls);
@@ -293,7 +294,8 @@ dsn::error_code ranger_policy_provider::sync_policies_to_remote_storage()
                 dsn::tasking::enqueue(
                     LPC_CM_GET_RANGER_POLICY,
                     &_tracker,
-                    std::bind(&ranger_policy_provider::sync_policies_to_remote_storage, this),
+                    std::bind(&ranger_resource_policy_manager::sync_policies_to_remote_storage,
+                              this),
                     0,
                     _load_ranger_policy_retry_delay_ms);
             } else {
@@ -305,7 +307,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_remote_storage()
     return err;
 }
 
-dsn::error_code ranger_policy_provider::sync_policies_to_cache()
+dsn::error_code ranger_resource_policy_manager::sync_policies_to_cache()
 {
     {
         utils::auto_write_lock l(_global_policies_lock);
@@ -326,7 +328,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_cache()
     return dsn::ERR_OK;
 }
 
-dsn::error_code ranger_policy_provider::sync_policies_to_apps()
+dsn::error_code ranger_resource_policy_manager::sync_policies_to_apps()
 {
     if (_acls.count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
         LOG_DEBUG_F("database_table is null");
@@ -408,7 +410,7 @@ dsn::error_code ranger_policy_provider::sync_policies_to_apps()
     return dsn::ERR_OK;
 }
 
-dsn::error_code ranger_policy_provider::load_ranger_resource_policy()
+dsn::error_code ranger_resource_policy_manager::load_ranger_resource_policy()
 {
     std::string cmd = "curl " + std::string(FLAGS_ranger_service_url) + "/" +
                       std::string(FLAGS_ranger_service_name);
@@ -428,7 +430,7 @@ dsn::error_code ranger_policy_provider::load_ranger_resource_policy()
     return parse(resp.str());
 }
 
-dsn::error_code ranger_policy_provider::parse(const std::string &resp)
+dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
 {
     rapidjson::Document d;
     d.Parse(resp.c_str());
@@ -496,9 +498,9 @@ dsn::error_code ranger_policy_provider::parse(const std::string &resp)
     return dsn::ERR_OK;
 }
 
-void ranger_policy_provider::resource_policy_constructor(resource_type type,
-                                                         const rapidjson::Value &d,
-                                                         ranger_resource_policy &acl)
+void ranger_resource_policy_manager::resource_policy_constructor(resource_type type,
+                                                                 const rapidjson::Value &d,
+                                                                 ranger_resource_policy &acl)
 {
     CHECK(
         resource_type::UNKNOWN != type, "resouce type is unknown, type = {}", enum_to_string(type));
@@ -523,8 +525,8 @@ void ranger_policy_provider::resource_policy_constructor(resource_type type,
     }
 }
 
-void ranger_policy_provider::policy_setter(std::vector<policy_item> &policy_list,
-                                           const rapidjson::Value &d)
+void ranger_resource_policy_manager::policy_setter(std::vector<policy_item> &policy_list,
+                                                   const rapidjson::Value &d)
 {
     CHECK(policy_list.empty(), "ranger policy list must be empty.");
     CHECK_DOCUMENT_IS_NON_ARRAY_RETURN_VOID(d);

@@ -26,7 +26,7 @@ namespace dsn {
 class message_ex;
 
 namespace ranger {
-class ranger_policy_provider;
+class ranger_resource_policy_manager;
 }
 namespace security {
 
@@ -82,7 +82,7 @@ protected:
 };
 
 std::shared_ptr<access_controller> create_meta_access_controller(
-    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider);
+    const std::shared_ptr<ranger::ranger_resource_policy_manager> &policy_manager);
 
 std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name);
 } // namespace security

@@ -53,14 +53,14 @@
 #include "partition_guardian.h"
 #include "meta_server_failure_detector.h"
 #include "runtime/security/access_controller.h"
-#include "runtime/ranger/ranger_policy_provider.h"
+#include "runtime/ranger/ranger_resource_policy_manager.h"
 
 namespace dsn {
 namespace security {
 class access_controller;
 } // namespace security
 namespace ranger {
-class ranger_policy_provider;
+class ranger_resource_policy_manager;
 } // namespace ranger
 namespace replication {
 
@@ -359,7 +359,7 @@ private:
     std::shared_ptr<security::access_controller> _access_controller;
 
     // use apache ranger for access control, which is nullptr when not use
-    std::shared_ptr<ranger::ranger_policy_provider> _ranger_policy_provider;
+    std::shared_ptr<ranger::ranger_resource_policy_manager> _ranger_resource_policy_manager;
 
     // indicate which operation is processeding in meta server
     std::atomic<meta_op_status> _meta_op_status;
