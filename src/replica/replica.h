@@ -55,6 +55,7 @@
 #include "prepare_list.h"
 #include "replica_context.h"
 #include "utils/throttling_controller.h"
+#include "runtime/security/access_controller.h"
 
 namespace dsn {
 namespace security {
@@ -500,6 +501,9 @@ private:
 
     void update_app_max_replica_count(int32_t max_replica_count);
     void update_app_name(const std::string &app_name);
+
+    // access control
+    bool access_controller_allowed(message_ex *msg, security::client_request_replica_type req_type);
 
 private:
     friend class ::dsn::replication::test::test_checker;
