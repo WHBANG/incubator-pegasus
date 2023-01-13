@@ -45,6 +45,7 @@ struct remote_copy_request
     std::string dest_dir;
     bool overwrite;
     bool high_priority;
+    dsn::gpid pid;
 };
 
 class nfs_node
@@ -58,6 +59,7 @@ public:
                                        const std::string &source_dir,
                                        const std::string &dest_disk_tag,
                                        const std::string &dest_dir,
+                                       const dsn::gpid &pid,
                                        bool overwrite,
                                        bool high_priority,
                                        task_code callback_code,
@@ -70,6 +72,7 @@ public:
                                    const std::vector<std::string> &files, // empty for all
                                    const std::string &dest_disk_tag,
                                    const std::string &dest_dir,
+                                   const dsn::gpid &pid,
                                    bool overwrite,
                                    bool high_priority,
                                    task_code callback_code,
@@ -87,6 +90,9 @@ public:
     virtual ~nfs_node() {}
     virtual error_code start() = 0;
     virtual error_code stop() = 0;
+    virtual void on_copy(const copy_request &request, ::dsn::rpc_replier<copy_response> &reply) = 0;
+    virtual void on_get_file_size_copy(const get_file_size_request &request,
+                                       ::dsn::rpc_replier<get_file_size_response> &reply) = 0;
 
 protected:
     virtual void call(std::shared_ptr<remote_copy_request> rci, aio_task *callback) = 0;

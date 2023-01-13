@@ -232,6 +232,28 @@ public:
 
     void update_config(const std::string &name);
 
+    template <typename TReqType, typename TRespType>
+    bool check_status_and_authz_with_reply(const TReqType &request,
+                                           ::dsn::rpc_replier<TRespType> &reply,
+                                           task_code code)
+    {
+        const auto &pid = request.gpid;
+        replica_ptr rep = get_replica(pid);
+        if (rep) {
+            dsn::message_ex *msg = dsn::message_ex::create_request(code);
+            dsn::marshall(msg, request);
+            if (!rep->access_controller_allowed(msg,
+                                                security::client_request_replica_type::KRead)) {
+                TRespType resp;
+                resp.error = ERR_ACL_DENY;
+                reply(resp);
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
 private:
     enum replica_node_state
     {

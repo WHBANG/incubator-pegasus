@@ -56,6 +56,12 @@ public:
 
     virtual error_code stop() override;
 
+    virtual void on_copy(const copy_request &request,
+                         ::dsn::rpc_replier<copy_response> &reply) override;
+
+    virtual void on_get_file_size_copy(const get_file_size_request &request,
+                                       ::dsn::rpc_replier<get_file_size_response> &reply) override;
+
 private:
     nfs_service_impl *_server;
     nfs_client_impl *_client;
