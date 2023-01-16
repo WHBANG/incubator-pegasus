@@ -39,7 +39,7 @@ DSN_DEFINE_string(ranger,
                   ranger_legacy_table_database_mapping_rule,
                   "default",
                   "the policy used by legacy tables after the ACL is enabled");
-DSN_DEFINE_bool("ranger", mandatory_enable_acl, "false", "mandatory use ranger policy");
+DSN_DEFINE_bool(ranger, mandatory_enable_acl, "false", "mandatory use ranger policy");
 
 #define CHECK_DOCUMENT_HAS_MEMBER(document, member)                                                \
     do {                                                                                           \
