@@ -55,7 +55,6 @@ public:
         _nfs_max_send_rate_megabytes_cmd.reset();
     }
 
-protected:
     // RPC_NFS_V2_NFS_COPY
     virtual void on_copy(const copy_request &request, ::dsn::rpc_replier<copy_response> &reply);
     // RPC_NFS_V2_NFS_GET_FILE_SIZE

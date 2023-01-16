@@ -37,6 +37,7 @@
 #include "perf_counter/perf_counter_wrapper.h"
 #include "failure_detector/failure_detector_multimaster.h"
 #include "nfs/nfs_node.h"
+#include "runtime/security/access_controller.h"
 
 #include "common/replication_common.h"
 #include "common/bulk_load_common.h"
@@ -237,11 +238,13 @@ public:
                                            ::dsn::rpc_replier<TRespType> &reply,
                                            task_code code)
     {
-        const auto &pid = request.gpid;
+        if (!_access_controller->is_enable_ranger_acl()) {
+            return true;
+        }
+        const auto &pid = request.pid;
         replica_ptr rep = get_replica(pid);
         if (rep) {
-            dsn::message_ex *msg = dsn::message_ex::create_request(code);
-            dsn::marshall(msg, request);
+            dsn::message_ex *msg = reply.response_message();
             if (!rep->access_controller_allowed(msg,
                                                 security::client_request_replica_type::KRead)) {
                 TRespType resp;
@@ -251,8 +254,16 @@ public:
             }
             return true;
         }
+        resp.error = ERR_OBJECT_NOT_FOUND;
+        reply(resp);
         return false;
     }
+
+    void on_nfs_copy(const ::dsn::service::copy_request &request,
+                     ::dsn::rpc_replier<::dsn::service::copy_response> &reply);
+
+    void on_nfs_get_file_size(const ::dsn::service::get_file_size_request &request,
+                              ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply);
 
 private:
     enum replica_node_state
@@ -430,6 +441,8 @@ private:
     std::atomic_int _manual_emergency_checkpointing_count;
 
     bool _is_running;
+
+    std::unique_ptr<dsn::security::access_controller> _access_controller;
 
 #ifdef DSN_ENABLE_GPERF
     std::atomic_bool _is_releasing_memory{false};

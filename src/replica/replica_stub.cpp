@@ -62,6 +62,7 @@
 #endif
 #include "utils/fail_point.h"
 #include "remote_cmd/remote_command.h"
+#include "nfs/nfs_code_definition.h"
 
 namespace dsn {
 namespace replication {
@@ -474,6 +475,7 @@ void replica_stub::initialize(bool clear /* = false*/)
     replication_options opts;
     opts.initialize();
     initialize(opts, clear);
+    _access_controller = dsn::make_unique<dsn::security::access_controller>();
 }
 
 void replica_stub::initialize(const replication_options &opts, bool clear /* = false*/)
@@ -1176,18 +1178,19 @@ void replica_stub::on_add_new_disk(add_new_disk_rpc rpc)
     }
 }
 
-void replica_stub::on_nfs_copy(const copy_request &request,
-                               ::dsn::rpc_replier<copy_response> &reply)
+void replica_stub::on_nfs_copy(const ::dsn::service::copy_request &request,
+                               ::dsn::rpc_replier<::dsn::service::copy_response> &reply)
 {
-    if (check_status_and_authz_with_reply(request, reply, RPC_NFS_COPY)) {
+    if (check_status_and_authz_with_reply(request, reply, dsn::service::RPC_NFS_COPY)) {
         _nfs->on_copy(request, reply);
     }
 }
 
-void replica_stub::on_nfs_get_file_size_copy(const get_file_size_request &request,
-                                             ::dsn::rpc_replier<get_file_size_response> &reply)
+void replica_stub::on_nfs_get_file_size(
+    const ::dsn::service::get_file_size_request &request,
+    ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply)
 {
-    if (check_status_and_authz_with_reply(request, reply, RPC_NFS_GET_FILE_SIZE)) {
+    if (check_status_and_authz_with_reply(request, reply, dsn::service::RPC_NFS_GET_FILE_SIZE)) {
         _nfs->on_get_file_size_copy(request, reply);
     }
 }
@@ -2285,9 +2288,9 @@ void replica_stub::open_service()
         RPC_ADD_NEW_DISK, "add_new_disk", &replica_stub::on_add_new_disk);
 
     // nfs
-    register_async_rpc_handler(RPC_NFS_COPY, "copy", &replica_stub::on_nfs_copy);
+    register_async_rpc_handler(dsn::service::RPC_NFS_COPY, "copy", &replica_stub::on_nfs_copy);
     register_async_rpc_handler(
-        RPC_NFS_GET_FILE_SIZE, "get_file_size", &replica_stub::on_nfs_get_file_size);
+        dsn::service::RPC_NFS_GET_FILE_SIZE, "get_file_size", &replica_stub::on_nfs_get_file_size);
 
     register_ctrl_command();
 }
