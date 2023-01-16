@@ -61,6 +61,8 @@ error_code nfs_node_simple::start()
     return ERR_OK;
 }
 
+void nfs_node_simple::register_async_rpc_handler_for_test() { _server->open_service(); }
+
 error_code nfs_node_simple::stop()
 {
     delete _server;

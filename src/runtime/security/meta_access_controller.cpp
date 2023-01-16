@@ -24,11 +24,7 @@
 
 namespace dsn {
 namespace security {
-<<<<<<< HEAD
-DSN_DEFINE_string(security,
-=======
 DSN_DEFINE_string("security",
->>>>>>> 523e1ceee (ranger access controller code review)
                   meta_acl_rpc_allow_list,
                   "",
                   "allowed list of rpc codes for meta_access_controller");

@@ -45,6 +45,14 @@ public:
     nfs_service_impl();
     virtual ~nfs_service_impl() { _tracker.cancel_outstanding_tasks(); }
 
+    // The rpc_handler is actually registered replica_stub.cpp, which is saved here for testing
+    void open_service()
+    {
+        register_async_rpc_handler(RPC_NFS_COPY, "copy", &nfs_service_impl::on_copy);
+        register_async_rpc_handler(
+            RPC_NFS_GET_FILE_SIZE, "get_file_size", &nfs_service_impl::on_get_file_size);
+    }
+
     void register_cli_commands();
 
     // TODO(yingchun): seems nobody call it, can be removed?

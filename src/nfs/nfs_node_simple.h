@@ -64,6 +64,8 @@ public:
         const ::dsn::service::get_file_size_request &request,
         ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply) override;
 
+    virtual void register_async_rpc_handler_for_test() override;
+
 private:
     nfs_service_impl *_server;
     nfs_client_impl *_client;

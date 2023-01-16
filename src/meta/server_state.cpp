@@ -2390,17 +2390,10 @@ bool server_state::can_run_balancer()
     for (auto iter = _nodes.begin(); iter != _nodes.end();) {
         if (!iter->second.alive()) {
             if (iter->second.partition_count() != 0) {
-<<<<<<< HEAD
                 LOG_INFO_F(
                     "don't do replica migration coz dead node({}) has {} partitions not removed",
                     iter->second.addr(),
                     iter->second.partition_count());
-=======
-                LOG_INFO("don't do replica migration coz dead node(%s) has %d partitions not "
-                         "removed",
-                         iter->second.addr().to_string(),
-                         iter->second.partition_count());
->>>>>>> 523e1ceee (ranger access controller code review)
                 return false;
             }
             _nodes.erase(iter++);
