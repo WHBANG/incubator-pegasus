@@ -474,6 +474,9 @@ private:
     // update allowed users for access controller
     void update_ac_allowed_users(const std::map<std::string, std::string> &envs);
 
+    // update replica access controller ranger policies
+    void update_ac_ranger_policies(const std::map<std::string, std::string> &envs);
+
     // update bool app envs
     void update_bool_envs(const std::map<std::string, std::string> &envs,
                           const std::string &name,

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set(MY_PROJ_NAME dsn.rpc)
+set(MY_PROJ_NAME dsn_ranger)
 
 # Search mode for source files under CURRENT project directory?
 # "GLOB_RECURSE" for recursive search
@@ -26,13 +26,5 @@ set(MY_PROJ_LIBS "")
 
 # Extra files that will be installed
 set(MY_BINPLACES "")
-
-thrift_generate_cpp(
-    REQUEST_META_THRIFT_SRCS
-    REQUEST_META_THRIFT_HDRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/request_meta.thrift
-)
-
-set(MY_PROJ_SRC ${REQUEST_META_THRIFT_SRCS})
 
 dsn_add_object()

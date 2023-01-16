@@ -86,8 +86,6 @@ meta_service::meta_service()
     _alive_nodes_count.init_app_counter(
         "eon.meta_service", "alive_nodes", COUNTER_TYPE_NUMBER, "current count of alive nodes");
 
-    _access_controller = security::create_meta_access_controller();
-
     _meta_op_status.store(meta_op_status::FREE);
 }
 
@@ -270,6 +268,16 @@ void meta_service::start_service()
                          server_state::sStateHash);
     }
 
+    tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
+                           tracker(),
+                           [this]() {
+                               if (!this->_access_controller->pre_check()) {
+                                   this->_policy_provider->update();
+                               }
+                           },
+                           std::chrono::seconds(_opts.update_ranger_policy_interval_s),
+                           server_state::sStateHash);
+
     tasking::enqueue_timer(LPC_META_STATE_NORMAL,
                            nullptr,
                            std::bind(&meta_service::balancer_run, this),
@@ -380,6 +388,11 @@ error_code meta_service::start()
     _split_svc = dsn::make_unique<meta_split_service>(this);
 
     _state->register_cli_commands();
+
+    _policy_provider = ranger::create_ranger_policy_provider(
+        this, meta_options::concat_path_unix_style(_cluster_root, "ranger_policy_meta_root"));
+
+    _access_controller = security::create_meta_access_controller(_policy_provider);
 
     start_service();
 
@@ -503,8 +516,15 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 // table operations
 void meta_service::on_create_app(dsn::message_ex *req)
 {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
     configuration_create_app_response response;
-    if (!check_status_with_msg(req, response)) {
+    if (!check_status_with_msg(req, response, match_ptr)) {
+        return;
+    }
+
+    configuration_create_app_request request;
+    if (!check_status_with_app_name(req, request, response, match_ptr)) {
         return;
     }
 
@@ -517,8 +537,15 @@ void meta_service::on_create_app(dsn::message_ex *req)
 
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
     configuration_drop_app_response response;
-    if (!check_status_with_msg(req, response)) {
+    if (!check_status_with_msg(req, response, match_ptr)) {
+        return;
+    }
+
+    configuration_drop_app_request request;
+    if (!check_status_with_app_name(req, request, response, match_ptr)) {
         return;
     }
 
@@ -557,11 +584,17 @@ void meta_service::on_recall_app(dsn::message_ex *req)
 
 void meta_service::on_list_apps(configuration_list_apps_rpc rpc)
 {
-    if (!check_status(rpc)) {
-        return;
-    }
+    if (this->_access_controller->pre_check()) {
+        _state->list_apps(rpc.request(), rpc.response(), nullptr);
+    } else {
+        std::vector<std::string> match;
+        auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+        if (!check_status(rpc, nullptr, match_ptr)) {
+            return;
+        }
 
-    _state->list_apps(rpc.request(), rpc.response());
+        _state->list_apps(rpc.request(), rpc.response(), match_ptr);
+    }
 }
 
 void meta_service::on_list_nodes(configuration_list_nodes_rpc rpc)
