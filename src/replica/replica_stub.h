@@ -254,6 +254,7 @@ public:
             }
             return true;
         }
+        TRespType resp;
         resp.error = ERR_OBJECT_NOT_FOUND;
         reply(resp);
         return false;
