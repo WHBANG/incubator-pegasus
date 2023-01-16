@@ -114,9 +114,9 @@ dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
     int ranger_service_version = d["policyVersion"].GetInt();
 
     if (_ranger_service_version == ranger_service_version) {
-        LOG_INFO_F("ranger service version: {} VS {}, no need to update policy.",
-                   _ranger_service_version,
-                   ranger_service_version);
+        LOG_DEBUG_F("ranger service version: {} VS {}, no need to update policy.",
+                    _ranger_service_version,
+                    ranger_service_version);
         return dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE;
     }
     if (_ranger_service_version == 0) {
