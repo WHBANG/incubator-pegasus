@@ -22,16 +22,16 @@
 namespace dsn {
 namespace ranger {
 
-std::vector<std::string> ranger_resource_policy::policy_item_list = {
+std::vector<std::string> ranger_resource_policy::_policy_item_list = {
     "policyItems", "denyPolicyItems", "allowExceptions", "denyExceptions"};
 
 void ranger_resource_policy::default_database_resource_builder(ranger_resource_policy &acl)
 {
-    acl.name = "defalut database policy";
-    acl.database_values = {"*"};
+    acl._resource_name = "defalut database policy";
+    acl._database_values = {"*"};
     policy_item item;
     item.accesses.insert(access_type::ALL);
-    acl.policies.allow_policy.push_back(item);
+    acl._policies.allow_policy.emplace_back(item);
 }
 
 } // namespace security

@@ -23,13 +23,13 @@
 #include <string>
 #include <unordered_map>
 
-#include "runtime/api_task.h"
-#include "runtime/task/task_tracker.h"
-#include "utils/error_code.h"
 #include "meta/meta_service.h"
 #include "meta/server_state.h"
 #include "ranger_resource_policy.h"
 #include "ranger_resource_policy_manager.h"
+#include "runtime/api_task.h"
+#include "runtime/task/task_tracker.h"
+#include "utils/error_code.h"
 
 namespace dsn {
 
@@ -67,7 +67,9 @@ public:
                                 const std::string &rpc_code,
                                 const access_type &type);
 
-    bool allowed(int rpc_code, std::string &name, std::shared_ptr<std::vector<std::string>> match);
+    bool allowed(const int rpc_code,
+                 const std::string &name,
+                 std::shared_ptr<std::vector<std::string>> match_ptr);
 
 private:
     std::unique_ptr<ranger_resource_policy_manager> _manager;

@@ -66,7 +66,10 @@ public:
     bool pre_check();
 
 protected:
+    bool pre_check(const std::string &user_name);
     friend class meta_access_controller_test;
+
+    std::unordered_set<std::string> _super_users;
 };
 
 std::unique_ptr<access_controller>
