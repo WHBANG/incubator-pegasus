@@ -40,7 +40,7 @@ class access_controller
 {
 public:
     access_controller();
-    virtual ~access_controller() = 0;
+    virtual ~access_controller();
 
     /**
      * update the access controller

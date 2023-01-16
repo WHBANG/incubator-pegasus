@@ -77,8 +77,9 @@ void nfs_node_simple::on_copy(const copy_request &request, ::dsn::rpc_replier<co
     _server->on_copy(request, reply);
 }
 
-void nfs_node_simple::on_get_file_size_copy(const get_file_size_request &request,
-                                            ::dsn::rpc_replier<get_file_size_response> &reply)
+void nfs_node_simple::on_get_file_size_copy(
+    const ::dsn::service::get_file_size_request &request,
+    ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply)
 {
     _server->on_get_file_size(request, reply);
 }
