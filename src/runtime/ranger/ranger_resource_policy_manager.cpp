@@ -33,9 +33,9 @@
 namespace dsn {
 namespace ranger {
 
-DSN_DEFINE_string("ranger", ranger_service_url, "", "ranger server url");
-DSN_DEFINE_string("ranger", ranger_service_name, "", "use policy name");
-DSN_DEFINE_string("ranger",
+DSN_DEFINE_string(ranger, ranger_service_url, "", "ranger server url");
+DSN_DEFINE_string(ranger, ranger_service_name, "", "use policy name");
+DSN_DEFINE_string(ranger,
                   ranger_legacy_table_database_mapping_rule,
                   "default",
                   "the policy used by legacy tables after the ACL is enabled");

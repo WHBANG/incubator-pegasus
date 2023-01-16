@@ -24,13 +24,13 @@
 
 namespace dsn {
 namespace security {
-DSN_DEFINE_string("security",
+DSN_DEFINE_string(security,
                   meta_acl_rpc_allow_list,
                   "",
                   "allowed list of rpc codes for meta_access_controller");
 
 DSN_DEFINE_uint32(
-    "security",
+    security,
     update_ranger_policy_interval_sec,
     5,
     "The interval seconds meta server to pull the latest access control policy from Ranger server");

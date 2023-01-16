@@ -35,7 +35,7 @@ DSN_DEFINE_bool("security", enable_ranger_acl, false, "whether enable access con
 //     return true;
 // });
 
-DSN_DEFINE_string("security", super_users, "", "super user for access controller");
+DSN_DEFINE_string(security, super_users, "", "super user for access controller");
 
 access_controller::access_controller()
 {
