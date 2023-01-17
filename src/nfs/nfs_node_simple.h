@@ -34,8 +34,9 @@
  */
 #pragma once
 
-#include "runtime/tool_api.h"
 #include "nfs/nfs_node.h"
+#include "runtime/serverlet.h"
+#include "runtime/tool_api.h"
 
 namespace dsn {
 namespace service {
@@ -55,6 +56,15 @@ public:
     virtual ::dsn::error_code start() override;
 
     virtual error_code stop() override;
+
+    virtual void on_copy(const ::dsn::service::copy_request &request,
+                         ::dsn::rpc_replier<::dsn::service::copy_response> &reply) override;
+
+    virtual void on_get_file_size_copy(
+        const ::dsn::service::get_file_size_request &request,
+        ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply) override;
+
+    virtual void register_async_rpc_handler_for_test() override;
 
 private:
     nfs_service_impl *_server;

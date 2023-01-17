@@ -1397,14 +1397,17 @@ void server_state::recall_app(dsn::message_ex *msg)
 }
 
 void server_state::list_apps(const configuration_list_apps_request &request,
-                             configuration_list_apps_response &response)
+                             configuration_list_apps_response &response,
+                             dsn::message_ex *msg)
 {
     LOG_DEBUG_F("list app request, status({})", request.status);
     zauto_read_lock l(_lock);
     for (auto &kv : _all_apps) {
         app_state &app = *(kv.second);
         if (request.status == app_status::AS_INVALID || request.status == app.status) {
-            response.infos.push_back(app);
+            if (nullptr == msg || _meta_svc->get_access_controller()->allowed(msg, app.app_name)) {
+                response.infos.push_back(app);
+            }
         }
     }
     response.err = dsn::ERR_OK;
@@ -1762,7 +1765,8 @@ void server_state::drop_partition(std::shared_ptr<app_state> &app, int pidx)
     CHECK_EQ((pc.partition_flags & pc_flags::dropped), 0);
     request.config.partition_flags |= pc_flags::dropped;
 
-    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the ballot.
+    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the
+    // ballot.
     // Actually it is necessary. Coz we may send a proposal due to the old DDD state
     // and laterly a update_config may arrive.
     // An updated ballot annouces a previous state is INVALID and all actions taken
@@ -2066,7 +2070,8 @@ server_state::construct_apps(const std::vector<query_app_info_response> &query_a
                 // created, and it will NEVER change even if the app is dropped/recalled...
                 if (info != *old_info) // app_info::operator !=
                 {
-                    // compatible for app.duplicating different between primary and secondaries in
+                    // compatible for app.duplicating different between primary and secondaries
+                    // in
                     // 2.1.x, 2.2.x and 2.3.x release
                     CHECK(app_info_compatible_equal(info, *old_info),
                           "conflict app info from ({}) for id({}): new_info({}), old_info({})",
@@ -3266,23 +3271,23 @@ void server_state::set_max_replica_count(configuration_set_max_replica_count_rpc
         response.err = ERR_STATE_FREEZED;
         response.hint_message =
             "current meta function level is freezed, since there are too few alive nodes";
-        LOG_ERROR_F(
-            "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
-            app_name,
-            app_id,
-            response.err.to_string(),
-            response.hint_message);
+        LOG_ERROR_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
+                    "message={}",
+                    app_name,
+                    app_id,
+                    response.err.to_string(),
+                    response.hint_message);
         return;
     }
 
     if (!validate_target_max_replica_count(new_max_replica_count, response.hint_message)) {
         response.err = ERR_INVALID_PARAMETERS;
-        LOG_WARNING_F(
-            "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
-            app_name,
-            app_id,
-            response.err.to_string(),
-            response.hint_message);
+        LOG_WARNING_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
+                      "message={}",
+                      app_name,
+                      app_id,
+                      response.err.to_string(),
+                      response.hint_message);
         return;
     }
 

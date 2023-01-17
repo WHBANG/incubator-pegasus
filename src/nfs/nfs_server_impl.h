@@ -45,6 +45,7 @@ public:
     nfs_service_impl();
     virtual ~nfs_service_impl() { _tracker.cancel_outstanding_tasks(); }
 
+    // The rpc_handler is actually registered replica_stub.cpp, which is saved here for testing
     void open_service()
     {
         register_async_rpc_handler(RPC_NFS_COPY, "copy", &nfs_service_impl::on_copy);
@@ -62,7 +63,6 @@ public:
         _nfs_max_send_rate_megabytes_cmd.reset();
     }
 
-protected:
     // RPC_NFS_V2_NFS_COPY
     virtual void on_copy(const copy_request &request, ::dsn::rpc_replier<copy_response> &reply);
     // RPC_NFS_V2_NFS_GET_FILE_SIZE
