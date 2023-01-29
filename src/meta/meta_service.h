@@ -53,11 +53,15 @@
 #include "partition_guardian.h"
 #include "meta_server_failure_detector.h"
 #include "runtime/security/access_controller.h"
+#include "runtime/ranger/ranger_policy_provider.h"
 
 namespace dsn {
 namespace security {
 class access_controller;
 } // namespace security
+namespace ranger {
+class ranger_policy_provider;
+} // namespace ranger
 namespace replication {
 
 class server_state;
@@ -265,9 +269,19 @@ private:
     //    false: check failed
     //    true:  check succeed
     template <typename TRpcHolder>
-    bool check_status(TRpcHolder rpc, /*out*/ rpc_address *forward_address = nullptr);
+    bool check_status(TRpcHolder rpc,
+                      /*out*/ rpc_address *forward_address = nullptr,
+                      /*out*/ std::shared_ptr<std::vector<std::string>> match = nullptr);
     template <typename TRespType>
-    bool check_status_with_msg(message_ex *req, TRespType &response_struct);
+    bool check_status_with_msg(message_ex *req,
+                               TRespType &response_struct,
+                               /*out*/ std::shared_ptr<std::vector<std::string>> match = nullptr);
+
+    template <typename TReqType, typename TRespType>
+    bool check_status_with_app_name(message_ex *req,
+                                    TReqType &request_struct,
+                                    TRespType &response_struct,
+                                    std::shared_ptr<std::vector<std::string>> match);
 
     error_code remote_storage_initialize();
     bool check_freeze() const;
@@ -337,6 +351,8 @@ private:
 
     std::unique_ptr<security::access_controller> _access_controller;
 
+    std::shared_ptr<ranger::ranger_policy_provider> _policy_provider;
+
     // indicate which operation is processeding in meta server
     std::atomic<meta_op_status> _meta_op_status;
 };
@@ -366,14 +382,10 @@ int meta_service::check_leader(TRpcHolder rpc, rpc_address *forward_address)
 }
 
 template <typename TRpcHolder>
-bool meta_service::check_status(TRpcHolder rpc, rpc_address *forward_address)
+bool meta_service::check_status(TRpcHolder rpc,
+                                rpc_address *forward_address,
+                                std::shared_ptr<std::vector<std::string>> match)
 {
-    if (!_access_controller->allowed(rpc.dsn_request())) {
-        rpc.response().err = ERR_ACL_DENY;
-        LOG_INFO("reject request with ERR_ACL_DENY");
-        return false;
-    }
-
     int result = check_leader(rpc, forward_address);
     if (result == 0)
         return false;
@@ -389,19 +401,20 @@ bool meta_service::check_status(TRpcHolder rpc, rpc_address *forward_address)
         return false;
     }
 
+    if (!_access_controller->allowed(rpc.dsn_request(), match)) {
+        rpc.response().err = ERR_ACL_DENY;
+        LOG_INFO("reject request with ERR_ACL_DENY");
+        return false;
+    }
+
     return true;
 }
 
 template <typename TRespType>
-bool meta_service::check_status_with_msg(message_ex *req, TRespType &response_struct)
+bool meta_service::check_status_with_msg(message_ex *req,
+                                         TRespType &response_struct,
+                                         std::shared_ptr<std::vector<std::string>> match)
 {
-    if (!_access_controller->allowed(req)) {
-        LOG_INFO("reject request with ERR_ACL_DENY");
-        response_struct.err = ERR_ACL_DENY;
-        reply(req, response_struct);
-        return false;
-    }
-
     int result = check_leader(req, nullptr);
     if (result == 0) {
         return false;
@@ -419,6 +432,47 @@ bool meta_service::check_status_with_msg(message_ex *req, TRespType &response_st
         return false;
     }
 
+    if (!_access_controller->allowed(req, match)) {
+        LOG_INFO("reject request with ERR_ACL_DENY");
+        response_struct.err = ERR_ACL_DENY;
+        reply(req, response_struct);
+        return false;
+    }
+
+    return true;
+}
+
+template <typename TReqType, typename TRespType>
+bool meta_service::check_status_with_app_name(message_ex *req,
+                                              TReqType &request_struct,
+                                              TRespType &response_struct,
+                                              std::shared_ptr<std::vector<std::string>> match)
+{
+    if (_access_controller->pre_check()) {
+        return true;
+    }
+
+    if (find(match->begin(), match->end(), "*") == match->end()) {
+        dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
+        dsn::unmarshall(copied_req, request_struct);
+        std::string app_name = request_struct.app_name;
+        std::vector<std::string> lv;
+        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+        if (lv.size() != 2) {
+            response_struct.err = ERR_INVALID_APP_NAME;
+            reply(req, response_struct);
+            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
+            return false;
+        }
+        if (find(match->begin(), match->end(), lv[0]) == match->end()) {
+            response_struct.err = ERR_ACL_DENY;
+            reply(req, response_struct);
+            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
+                          lv[0],
+                          lv[1]);
+            return false;
+        }
+    }
     return true;
 }
 

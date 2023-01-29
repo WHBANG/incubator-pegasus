@@ -25,24 +25,21 @@ namespace dsn {
 namespace security {
 replica_access_controller::replica_access_controller(const std::string &name) { _name = name; }
 
-bool replica_access_controller::allowed(message_ex *msg)
+bool replica_access_controller::allowed(message_ex *msg, bool is_read)
 {
-    const std::string &user_name = msg->io_session->get_client_username();
-    if (pre_check(user_name)) {
+    // disable acl
+    if (pre_check()) {
         return true;
     }
 
+    const std::string &user_name = msg->io_session->get_client_username();
+    dsn::ranger::access_type acl_type = dsn::ranger::access_type::WRITE;
+    if (is_read) {
+        acl_type = dsn::ranger::access_type::READ;
+    }
     {
         utils::auto_read_lock l(_lock);
-        // If the user didn't specify any ACL, it means this table is publicly accessible to
-        // everyone. This is a backdoor to allow old-version clients to gracefully upgrade. After
-        // they are finally ensured to be fully upgraded, they can specify some usernames to ACL and
-        // the table will be truly protected.
-        if (!_users.empty() && _users.find(user_name) == _users.end()) {
-            LOG_INFO("{}: user_name {} doesn't exist in acls map", _name, user_name);
-            return false;
-        }
-        return true;
+        return _ranger_policies.allowed(user_name, acl_type);
     }
 }
 
@@ -65,5 +62,24 @@ void replica_access_controller::update(const std::string &users)
         _env_users = users;
     }
 }
+
+void replica_access_controller::update_ranger_policies(std::string &policies)
+{
+    {
+        utils::auto_read_lock l(_lock);
+        if (_env_policies == policies) {
+            return;
+        }
+    }
+    ranger::policy_priority_level _policies;
+    {
+        utils::auto_write_lock l(_lock);
+        _env_policies = policies;
+        dsn::json::json_forwarder<ranger::policy_priority_level>::decode(
+            dsn::blob::create_from_bytes(std::move(policies)), _policies);
+        _ranger_policies = _policies;
+    }
+}
+
 } // namespace security
 } // namespace dsn

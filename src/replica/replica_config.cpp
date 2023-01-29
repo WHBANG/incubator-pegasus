@@ -497,6 +497,8 @@ void replica::update_app_envs_internal(const std::map<std::string, std::string> 
 
     update_ac_allowed_users(envs);
 
+    update_ac_ranger_policies(envs);
+
     update_allow_ingest_behind(envs);
 
     update_deny_client(envs);
@@ -526,6 +528,17 @@ void replica::update_ac_allowed_users(const std::map<std::string, std::string> &
     }
 
     _access_controller->update(allowed_users);
+}
+
+void replica::update_ac_ranger_policies(const std::map<std::string, std::string> &envs)
+{
+    std::string ranger_policies;
+    auto iter = envs.find(replica_envs::REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES);
+    if (iter != envs.end()) {
+        ranger_policies = iter->second;
+    }
+
+    _access_controller->update_ranger_policies(ranger_policies);
 }
 
 void replica::update_allow_ingest_behind(const std::map<std::string, std::string> &envs)
