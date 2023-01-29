@@ -222,8 +222,7 @@ replica::~replica(void)
 
 void replica::on_client_read(dsn::message_ex *request, bool ignore_throttling)
 {
-    if (!_access_controller->allowed(request, true)) {
-        // if (!_access_controller->allowed(request)) {
+    if (!_access_controller->allowed(request, security::client_request_replica_type::read)) {
         response_client_read(request, ERR_ACL_DENY);
         return;
     }

@@ -279,9 +279,6 @@ private:
                                TRespType &response_struct,
                                const std::string &app_name = "");
 
-    template <typename TRespType>
-    std::string get_app_name(message_ex *req, TRespType &request_struct);
-
     template <typename TRpcHolder>
     bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
 
@@ -412,10 +409,12 @@ bool meta_service::check_status(TRpcHolder rpc,
     if (!check_leader_status(rpc, forward_address)) {
         return false;
     }
-
     if (!_access_controller->allowed(rpc.dsn_request(), app_name)) {
         rpc.response().err = ERR_ACL_DENY;
-        LOG_INFO("reject request with ERR_ACL_DENY");
+        LOG_INFO_F("reject request with ERR_ACL_DENY, rpc = {}, user_name = {}, app_name = {}.",
+                   rpc.dsn_request()->rpc_code(),
+                   rpc.dsn_request()->io_session->get_client_username(),
+                   app_name);
         return false;
     }
 
@@ -445,21 +444,15 @@ bool meta_service::check_status_with_msg(message_ex *req,
     }
 
     if (!_access_controller->allowed(req, app_name)) {
-        LOG_INFO("reject request with ERR_ACL_DENY");
+        LOG_INFO_F("reject request with ERR_ACL_DENY, rpc = {}, user_name = {}, app_name = {}.",
+                   req->rpc_code(),
+                   req->io_session->get_client_username(),
+                   app_name);
         response_struct.err = ERR_ACL_DENY;
         reply(req, response_struct);
         return false;
     }
-
     return true;
-}
-
-template <typename TRespType>
-std::string meta_service::get_app_name(message_ex *req, TRespType &request_struct)
-{
-    dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
-    dsn::unmarshall(copied_req, request_struct);
-    return request_struct.app_name;
 }
 
 } // namespace replication
