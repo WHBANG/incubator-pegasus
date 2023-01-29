@@ -1257,7 +1257,9 @@ void backup_service::add_backup_policy(dsn::message_ex *msg)
                 msg->release_ref();
                 return;
             }
+            // when the ranger ACL is enabled, access control will be checked for each table.
             auto access_controller = _meta_svc->get_access_controller();
+            // adding multiple judgments here is to adapt to the old acl and avoid checking again.
             if (access_controller && !access_controller->is_disable_ranger_acl() &&
                 !access_controller->allowed(copied_msg, app->app_name)) {
                 LOG_ERROR_F(
@@ -1508,7 +1510,7 @@ void backup_service::modify_backup_policy(configuration_modify_backup_policy_rpc
             } else if (access_controller && !access_controller->is_disable_ranger_acl() &&
                        !access_controller->allowed(rpc.dsn_request(), app->app_name)) {
                 LOG_WARNING_F("{}: add app to policy failed with ERR_ACL_DENY, ignore it",
-                              cur_policy.policy_name.c_str());
+                              cur_policy.policy_name);
             } else {
                 valid_app_ids_to_add.emplace_back(appid);
                 id_to_app_names.insert(std::make_pair(appid, app->app_name));

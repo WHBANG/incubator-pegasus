@@ -53,7 +53,7 @@ access_controller::access_controller()
 
 access_controller::~access_controller() {}
 
-bool access_controller::pre_check(const std::string &user_name)
+bool access_controller::is_super_user_or_disable_acl(const std::string &user_name)
 {
     if (!FLAGS_enable_acl || _super_users.find(user_name) != _super_users.end()) {
         return true;

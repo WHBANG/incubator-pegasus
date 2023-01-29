@@ -270,14 +270,17 @@ private:
     //    false: check failed
     //    true:  check succeed
     template <typename TRpcHolder>
-    bool check_status(TRpcHolder rpc,
-                      /*out*/ rpc_address *forward_address = nullptr,
-                      const std::string &app_name = "");
+    bool check_status_and_authz(TRpcHolder rpc,
+                                /*out*/ rpc_address *forward_address = nullptr,
+                                const std::string &app_name = "");
 
     template <typename TRespType>
-    bool check_status_with_msg(message_ex *req,
-                               TRespType &response_struct,
-                               const std::string &app_name = "");
+    bool check_status_and_authz_with_reply(message_ex *req,
+                                           TRespType &response_struct,
+                                           const std::string &app_name = "");
+
+    template <typename TReqType, typename TRespType>
+    bool check_status_with_msg(message_ex *msg);
 
     template <typename TRpcHolder>
     bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
@@ -401,10 +404,14 @@ bool meta_service::check_leader_status(TRpcHolder rpc, rpc_address *forward_addr
     return true;
 }
 
+// when the ranger ACL is enabled, only the leader meta_server will pull ranger policy, so if it is
+// not the leader, _access_controller may be a null pointer, or the master has been cut, and the
+// above policy information may be out of date, so if you use the ranger for acl, need to switch to
+// the leader meta_server first.
 template <typename TRpcHolder>
-bool meta_service::check_status(TRpcHolder rpc,
-                                rpc_address *forward_address,
-                                const std::string &app_name)
+bool meta_service::check_status_and_authz(TRpcHolder rpc,
+                                          rpc_address *forward_address,
+                                          const std::string &app_name)
 {
     if (!check_leader_status(rpc, forward_address)) {
         return false;
@@ -422,9 +429,9 @@ bool meta_service::check_status(TRpcHolder rpc,
 }
 
 template <typename TRespType>
-bool meta_service::check_status_with_msg(message_ex *req,
-                                         TRespType &response_struct,
-                                         const std::string &app_name)
+bool meta_service::check_status_and_authz_with_reply(message_ex *req,
+                                                     TRespType &response_struct,
+                                                     const std::string &app_name)
 {
     int result = check_leader(req, nullptr);
     if (result == 0) {
@@ -453,6 +460,16 @@ bool meta_service::check_status_with_msg(message_ex *req,
         return false;
     }
     return true;
+}
+
+template <typename TReqType, typename TRespType>
+bool meta_service::check_status_with_msg(message_ex *msg)
+{
+    TReqType req;
+    TRespType resp;
+    dsn::message_ex *copied_msg = message_ex::copy_message_no_reply(*msg);
+    dsn::unmarshall(copied_msg, req);
+    return check_status_and_authz_with_reply(msg, resp, req.app_name);
 }
 
 } // namespace replication

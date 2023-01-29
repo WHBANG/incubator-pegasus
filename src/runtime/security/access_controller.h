@@ -79,7 +79,10 @@ public:
                                                    std::string &app_name_prefix){};
 
 protected:
-    bool pre_check(const std::string &user_name);
+    /**
+     *  check if disable old acl (not use ranger), or user_name is super_user.
+     * */
+    bool is_super_user_or_disable_acl(const std::string &user_name);
     friend class meta_access_controller_test;
 
     std::unordered_set<std::string> _super_users;

@@ -54,7 +54,7 @@ public:
 
     bool pre_check(const std::string &user_name)
     {
-        return _meta_access_controller->pre_check(user_name);
+        return _meta_access_controller->is_super_user_or_disable_acl(user_name);
     }
 
     bool allowed(dsn::message_ex *msg) { return _meta_access_controller->allowed(msg); }
