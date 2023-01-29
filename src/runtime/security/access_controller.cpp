@@ -24,9 +24,9 @@
 
 namespace dsn {
 namespace security {
-DSN_DEFINE_bool("security", enable_acl, false, "whether enable access controller or not");
+DSN_DEFINE_bool(security, enable_acl, false, "whether enable access controller or not");
 
-DSN_DEFINE_bool("security", enable_ranger_acl, false, "whether enable access controller or not");
+DSN_DEFINE_bool(security, enable_ranger_acl, false, "whether enable access controller or not");
 
 // DSN_DEFINE_group_validator(enable_ranger_acl_allow, [](std::string &message) -> bool {
 //     if (FLAGS_enable_ranger_acl && !FLAGS_enable_acl) {
@@ -35,7 +35,7 @@ DSN_DEFINE_bool("security", enable_ranger_acl, false, "whether enable access con
 //     return true;
 // });
 
-DSN_DEFINE_string("security", super_users, "", "super user for access controller");
+DSN_DEFINE_string(security, super_users, "", "super user for access controller");
 
 access_controller::access_controller()
 {

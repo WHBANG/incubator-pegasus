@@ -33,13 +33,13 @@
 namespace dsn {
 namespace ranger {
 
-DSN_DEFINE_string("ranger", ranger_service_url, "", "ranger server url");
-DSN_DEFINE_string("ranger", ranger_service_name, "", "use policy name");
-DSN_DEFINE_string("ranger",
+DSN_DEFINE_string(ranger, ranger_service_url, "", "ranger server url");
+DSN_DEFINE_string(ranger, ranger_service_name, "", "use policy name");
+DSN_DEFINE_string(ranger,
                   ranger_legacy_table_database_mapping_rule,
                   "default",
                   "the policy used by legacy tables after the ACL is enabled");
-DSN_DEFINE_bool("ranger", mandatory_enable_acl, "false", "mandatory use ranger policy");
+DSN_DEFINE_bool(ranger, mandatory_enable_acl, "false", "mandatory use ranger policy");
 
 #define CHECK_DOCUMENT_HAS_MEMBER(document, member)                                                \
     do {                                                                                           \
@@ -210,10 +210,6 @@ void ranger_resource_policy_manager::update()
     dsn::error_code err_code = load_ranger_resource_policy();
     if (err_code == dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE) {
         LOG_DEBUG_F("No need to update ACLs policies with error code = {}", err_code);
-        err_code = sync_policies_to_apps();
-        if (err_code != dsn::ERR_OK) {
-            LOG_DEBUG_F("update app policies failed with error code = {}", err_code);
-        }
         return;
     }
     if (err_code != dsn::ERR_OK) {

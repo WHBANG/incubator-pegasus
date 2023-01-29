@@ -1392,7 +1392,7 @@ void server_state::list_apps(const configuration_list_apps_request &request,
                              configuration_list_apps_response &response,
                              dsn::message_ex *msg)
 {
-    LOG_DEBUG("list app request, status(%d)", request.status);
+    LOG_DEBUG_F("list app request, status({})", request.status);
     zauto_read_lock l(_lock);
     for (auto &kv : _all_apps) {
         app_state &app = *(kv.second);
@@ -2378,21 +2378,10 @@ bool server_state::can_run_balancer()
     for (auto iter = _nodes.begin(); iter != _nodes.end();) {
         if (!iter->second.alive()) {
             if (iter->second.partition_count() != 0) {
-<<<<<<< HEAD
                 LOG_INFO(
-=======
-<<<<<<< HEAD
-                LOG_INFO_F(
->>>>>>> d1066c89d (ranger access controller code review)
                     "don't do replica migration coz dead node({}) has {} partitions not removed",
                     iter->second.addr(),
                     iter->second.partition_count());
-=======
-                LOG_INFO("don't do replica migration coz dead node(%s) has %d partitions not "
-                         "removed",
-                         iter->second.addr().to_string(),
-                         iter->second.partition_count());
->>>>>>> 523e1ceee (ranger access controller code review)
                 return false;
             }
             _nodes.erase(iter++);
@@ -3268,41 +3257,23 @@ void server_state::set_max_replica_count(configuration_set_max_replica_count_rpc
         response.err = ERR_STATE_FREEZED;
         response.hint_message =
             "current meta function level is freezed, since there are too few alive nodes";
-<<<<<<< HEAD
         LOG_ERROR(
             "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
             app_name,
             app_id,
             response.err.to_string(),
             response.hint_message);
-=======
-        LOG_ERROR_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
-                    "message={}",
-                    app_name,
-                    app_id,
-                    response.err.to_string(),
-                    response.hint_message);
->>>>>>> d1066c89d (ranger access controller code review)
         return;
     }
 
     if (!validate_target_max_replica_count(new_max_replica_count, response.hint_message)) {
         response.err = ERR_INVALID_PARAMETERS;
-<<<<<<< HEAD
         LOG_WARNING(
             "failed to set max_replica_count: app_name={}, app_id={}, error_code={}, message={}",
             app_name,
             app_id,
             response.err.to_string(),
             response.hint_message);
-=======
-        LOG_WARNING_F("failed to set max_replica_count: app_name={}, app_id={}, error_code={}, "
-                      "message={}",
-                      app_name,
-                      app_id,
-                      response.err.to_string(),
-                      response.hint_message);
->>>>>>> d1066c89d (ranger access controller code review)
         return;
     }
 
