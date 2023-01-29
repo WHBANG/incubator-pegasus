@@ -46,7 +46,9 @@ DSN_DEFINE_string("security", super_users, "", "super user for access controller
 
 access_controller::access_controller()
 {
-    CHECK(!(FLAGS_enable_ranger_acl && !FLAGS_enable_acl), "not allow use ranger");
+    // when FLAGS_enable_ranger_acl is True, FLAGS_enable_acl must be true.
+    CHECK(!(FLAGS_enable_ranger_acl && !FLAGS_enable_acl),
+          "when ranger acl is enable, FLAGS_enable_acl must be true");
     utils::split_args(FLAGS_super_users, _super_users, ',');
 }
 >>>>>>> 523e1ceee (ranger access controller code review)
@@ -60,8 +62,8 @@ bool access_controller::is_super_user(const std::string &user_name)
     return _super_users.find(user_name) != _super_users.end();
 }
 
-std::shared_ptr<access_controller>
-create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
+std::shared_ptr<access_controller> create_meta_access_controller(
+    const std::shared_ptr<ranger::ranger_policy_provider> &policy_provider)
 {
     return std::make_shared<meta_access_controller>(policy_provider);
 }
