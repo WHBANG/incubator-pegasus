@@ -20,12 +20,11 @@
 #include <string>
 #include <utility>
 
+#include "ranger_resource_policy_manager.h"
 #include "utils/api_utilities.h"
 #include "utils/flags.h"
 #include "utils/fmt_logging.h"
 #include "utils/process_utils.h"
-
-#include "ranger_resource_policy_manager.h"
 
 DSN_DEFINE_string("ranger", ranger_service_url, "", "ranger server url");
 DSN_DEFINE_string("ranger", ranger_service_name, "", "use policy name");
@@ -68,7 +67,7 @@ namespace ranger {
 
 ranger_resource_policy_manager::ranger_resource_policy_manager()
 {
-#define ADD_ACL_ITEM(x) access_type_map.insert(std::pair<std::string, access_type>(#x, x))
+#define ADD_ACL_ITEM(x) _access_type_map.insert(std::pair<std::string, access_type>(#x, x))
 
     ADD_ACL_ITEM(READ);
     ADD_ACL_ITEM(WRITE);
@@ -79,7 +78,7 @@ ranger_resource_policy_manager::ranger_resource_policy_manager()
     ADD_ACL_ITEM(CONTROL);
     ADD_ACL_ITEM(ALL);
 
-    CHECK(acls.empty(), "ranger acls must be empty.");
+    CHECK(_acls.empty(), "ranger acls must be empty.");
     _ranger_service_version = 0;
 
 #undef ADD_ACL_ITEM
@@ -87,9 +86,10 @@ ranger_resource_policy_manager::ranger_resource_policy_manager()
 
 dsn::error_code ranger_resource_policy_manager::load_ranger_resource_policy()
 {
-    std::string cmd =
-        "curl " + std::string(FLAGS_ranger_service_url) + std::string(FLAGS_ranger_service_name);
+    std::string cmd = "curl " + std::string(FLAGS_ranger_service_url) + "/" +
+                      std::string(FLAGS_ranger_service_name);
     std::stringstream resp;
+
     if (dsn::utils::pipe_execute(cmd.c_str(), resp) != 0) {
         // get policy failed from ranger
         if (FLAGS_mandatory_enable_acl) {
@@ -122,11 +122,11 @@ dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
     if (_ranger_service_version == 0) {
         _ranger_service_version = ranger_service_version;
     }
-    acls.clear();
+    _acls.clear();
     ranger_resource_policy default_acl;
     ranger_resource_policy::default_database_resource_builder(default_acl);
     std::vector<ranger_resource_policy> default_resource_policy{default_acl};
-    acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
+    _acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
         enum_to_string(DATABASE), default_resource_policy));
     const rapidjson::Value &policies = d["policies"];
 
@@ -137,32 +137,32 @@ dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
         // 2. only parse 'isEnabled' policy
         if (p["isEnabled"].IsBool() && p["isEnabled"].GetBool()) {
             // 1. parse resource type
-            std::map<std::string, std::vector<std::string>> type_map;
+            std::map<std::string, std::set<std::string>> type_map;
 
             for (const auto &t : p["resources"].GetObject()) {
-                std::vector<std::string> values;
+                std::set<std::string> values;
                 for (const auto &v : (t.value)["values"].GetArray()) {
-                    values.push_back(v.GetString());
+                    values.insert(v.GetString());
                 }
                 type_map.insert(
-                    std::pair<std::string, std::vector<std::string>>(t.name.GetString(), values));
+                    std::pair<std::string, std::set<std::string>>(t.name.GetString(), values));
             }
 
             ranger_resource_policy acl;
             if (type_map.size() == 1) {
                 if (type_map.find("global") != type_map.end()) {
-                    acl.global_values = type_map["global"];
+                    acl._global_values = type_map["global"];
                     resource_policy_constructor(resource_type::GLOBAL, p, acl);
                 } else if (type_map.find("database") != type_map.end()) {
-                    acl.database_values = type_map["database"];
+                    acl._database_values = type_map["database"];
                     resource_policy_constructor(resource_type::DATABASE, p, acl);
                 } else {
                     return dsn::ERR_RANGER_PARSE_ACL;
                 }
             } else if (type_map.size() == 2 && type_map.find("database") != type_map.end() &&
                        type_map.find("table") != type_map.end()) {
-                acl.database_values = type_map["database"];
-                acl.table_values = type_map["table"];
+                acl._database_values = type_map["database"];
+                acl._table_values = type_map["table"];
                 resource_policy_constructor(resource_type::DATABASE_TABLE, p, acl);
             } else {
                 return dsn::ERR_RANGER_PARSE_ACL;
@@ -176,28 +176,26 @@ void ranger_resource_policy_manager::resource_policy_constructor(resource_type t
                                                                  const rapidjson::Value &d,
                                                                  ranger_resource_policy &acl)
 {
-    if (resource_type::UNKNOWN == type) {
-        LOG_ERROR_F("resouce type is unknown, type = {}", enum_to_string(resource_type::UNKNOWN));
-        return;
-    }
+    CHECK(
+        resource_type::UNKNOWN != type, "resouce type is unknown, type = {}", enum_to_string(type));
     CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID(d, "name");
-    acl.name = d["name"].GetString();
-    for (const auto &policy : ranger_resource_policy::policy_item_list) {
+    acl._resource_name = d["name"].GetString();
+    for (const auto &policy : ranger_resource_policy::_policy_item_list) {
         if (policy == "policyItems") {
-            policy_setter(acl.policies.allow_policy, d["policyItems"]);
+            policy_setter(acl._policies.allow_policy, d["policyItems"]);
         } else if (policy == "denyPolicyItems") {
-            policy_setter(acl.policies.deny_policy, d["denyPolicyItems"]);
+            policy_setter(acl._policies.deny_policy, d["denyPolicyItems"]);
         } else if (policy == "allowExceptions") {
-            policy_setter(acl.policies.allow_policy_exclude, d["allowExceptions"]);
+            policy_setter(acl._policies.allow_policy_exclude, d["allowExceptions"]);
         } else {
-            policy_setter(acl.policies.deny_policy_exclude, d["denyExceptions"]);
+            policy_setter(acl._policies.deny_policy_exclude, d["denyExceptions"]);
         }
     }
-    if (acls.find(enum_to_string(type)) == acls.end()) {
-        acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
+    if (_acls.find(enum_to_string(type)) == _acls.end()) {
+        _acls.insert(std::pair<std::string, std::vector<ranger_resource_policy>>(
             enum_to_string(type), std::vector<ranger_resource_policy>{acl}));
     } else {
-        acls[enum_to_string(type)].push_back(acl);
+        _acls[enum_to_string(type)].emplace_back(acl);
     }
 }
 
@@ -216,7 +214,7 @@ void ranger_resource_policy_manager::policy_setter(std::vector<policy_item> &pol
             if (access["isAllowed"].GetBool()) {
                 std::string str_type = access["type"].GetString();
                 std::transform(str_type.begin(), str_type.end(), str_type.begin(), toupper);
-                access_type type = access_type_map[str_type];
+                access_type type = _access_type_map[str_type];
                 it.accesses.insert(type);
             }
         }
@@ -229,9 +227,11 @@ void ranger_resource_policy_manager::policy_setter(std::vector<policy_item> &pol
         for (const auto &role : item["roles"].GetArray()) {
             it.roles.insert(role.GetString());
         }
-        policy_list.push_back(it);
+        policy_list.emplace_back(it);
     }
 }
+
+resource_acls_type ranger_resource_policy_manager::get_acls() { return _acls; }
 
 #undef CHECK_DOCUMENT_HAS_MEMBER
 #undef CHECK_DOCUMENT_HAS_MEMBER_RETURN_VOID

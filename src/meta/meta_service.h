@@ -271,17 +271,27 @@ private:
     template <typename TRpcHolder>
     bool check_status(TRpcHolder rpc,
                       /*out*/ rpc_address *forward_address = nullptr,
-                      /*out*/ std::shared_ptr<std::vector<std::string>> match = nullptr);
+                      /*out*/ std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
     template <typename TRespType>
-    bool check_status_with_msg(message_ex *req,
-                               TRespType &response_struct,
-                               /*out*/ std::shared_ptr<std::vector<std::string>> match = nullptr);
+    bool
+    check_status_with_msg(message_ex *req,
+                          TRespType &response_struct,
+                          /*out*/ std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
 
     template <typename TReqType, typename TRespType>
     bool check_status_with_app_name(message_ex *req,
                                     TReqType &request_struct,
                                     TRespType &response_struct,
-                                    std::shared_ptr<std::vector<std::string>> match);
+                                    std::shared_ptr<std::vector<std::string>> match_ptr);
+
+    template <typename TRpcHolder>
+    bool check_status_with_app_name(TRpcHolder rpc,
+                                    std::shared_ptr<std::vector<std::string>> match_ptr);
+
+    template <typename TRpcHolder>
+    bool check_status_with_app_name(TRpcHolder rpc,
+                                    std::shared_ptr<std::vector<std::string>> match_ptr,
+                                    const std::string app_name);
 
     error_code remote_storage_initialize();
     bool check_freeze() const;
@@ -384,7 +394,7 @@ int meta_service::check_leader(TRpcHolder rpc, rpc_address *forward_address)
 template <typename TRpcHolder>
 bool meta_service::check_status(TRpcHolder rpc,
                                 rpc_address *forward_address,
-                                std::shared_ptr<std::vector<std::string>> match)
+                                std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     int result = check_leader(rpc, forward_address);
     if (result == 0)
@@ -401,7 +411,7 @@ bool meta_service::check_status(TRpcHolder rpc,
         return false;
     }
 
-    if (!_access_controller->allowed(rpc.dsn_request(), match)) {
+    if (!_access_controller->allowed(rpc.dsn_request(), match_ptr)) {
         rpc.response().err = ERR_ACL_DENY;
         LOG_INFO("reject request with ERR_ACL_DENY");
         return false;
@@ -413,7 +423,7 @@ bool meta_service::check_status(TRpcHolder rpc,
 template <typename TRespType>
 bool meta_service::check_status_with_msg(message_ex *req,
                                          TRespType &response_struct,
-                                         std::shared_ptr<std::vector<std::string>> match)
+                                         std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     int result = check_leader(req, nullptr);
     if (result == 0) {
@@ -432,7 +442,7 @@ bool meta_service::check_status_with_msg(message_ex *req,
         return false;
     }
 
-    if (!_access_controller->allowed(req, match)) {
+    if (!_access_controller->allowed(req, match_ptr)) {
         LOG_INFO("reject request with ERR_ACL_DENY");
         response_struct.err = ERR_ACL_DENY;
         reply(req, response_struct);
@@ -446,13 +456,13 @@ template <typename TReqType, typename TRespType>
 bool meta_service::check_status_with_app_name(message_ex *req,
                                               TReqType &request_struct,
                                               TRespType &response_struct,
-                                              std::shared_ptr<std::vector<std::string>> match)
+                                              std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     if (_access_controller->pre_check()) {
         return true;
     }
 
-    if (find(match->begin(), match->end(), "*") == match->end()) {
+    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
         dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
         dsn::unmarshall(copied_req, request_struct);
         std::string app_name = request_struct.app_name;
@@ -464,9 +474,65 @@ bool meta_service::check_status_with_app_name(message_ex *req,
             LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
             return false;
         }
-        if (find(match->begin(), match->end(), lv[0]) == match->end()) {
+        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
             response_struct.err = ERR_ACL_DENY;
             reply(req, response_struct);
+            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
+                          lv[0],
+                          lv[1]);
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename TRpcHolder>
+bool meta_service::check_status_with_app_name(TRpcHolder rpc,
+                                              std::shared_ptr<std::vector<std::string>> match_ptr)
+{
+    if (_access_controller->pre_check()) {
+        return true;
+    }
+
+    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
+        const std::string app_name = rpc.request().app_name;
+        std::vector<std::string> lv;
+        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+        if (lv.size() != 2) {
+            rpc.response().err = ERR_INVALID_APP_NAME;
+            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
+            return false;
+        }
+        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
+            rpc.response().err = ERR_ACL_DENY;
+            LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
+                          lv[0],
+                          lv[1]);
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename TRpcHolder>
+bool meta_service::check_status_with_app_name(TRpcHolder rpc,
+                                              std::shared_ptr<std::vector<std::string>> match_ptr,
+                                              const std::string app_name)
+{
+    if (_access_controller->pre_check()) {
+        return true;
+    }
+
+    if (find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end()) {
+        std::vector<std::string> lv;
+        ::dsn::utils::split_args(app_name.c_str(), lv, '.');
+        if (lv.size() != 2) {
+            rpc.response().err = ERR_INVALID_APP_NAME;
+            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_name = {}", app_name);
+            return false;
+        }
+        if (find(match_ptr->begin(), match_ptr->end(), lv[0]) == match_ptr->end()) {
+            rpc.response().err = ERR_ACL_DENY;
             LOG_WARNING_F("reject request with ERR_ACL_DENY, app_name_prefix = {}, app_name = {}",
                           lv[0],
                           lv[1]);

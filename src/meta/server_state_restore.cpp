@@ -139,10 +139,21 @@ std::pair<dsn::error_code, std::shared_ptr<app_state>> server_state::restore_app
     return res;
 }
 
-void server_state::restore_app(dsn::message_ex *msg)
+void server_state::restore_app(dsn::message_ex *msg,
+                               std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     configuration_restore_request request;
     dsn::unmarshall(msg, request);
+    int splitter = request.app_name.find_first_of('.');
+    std::string app_name_prefix = request.app_name.substr(0, splitter);
+    if (match_ptr && find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+        find(match_ptr->begin(), match_ptr->end(), app_name_prefix) == match_ptr->end()) {
+        configuration_create_app_response response;
+        response.err = ERR_ACL_DENY;
+        _meta_svc->reply_data(msg, response);
+        msg->release_ref();
+        return;
+    }
     sync_app_from_backup_media(
         request, [this, msg, request](dsn::error_code err, const dsn::blob &app_info_data) {
             dsn::error_code ec = ERR_OK;
@@ -203,7 +214,8 @@ void server_state::on_recv_restore_report(configuration_report_restore_status_rp
     }
 }
 
-void server_state::on_query_restore_status(configuration_query_restore_rpc rpc)
+void server_state::on_query_restore_status(configuration_query_restore_rpc rpc,
+                                           std::shared_ptr<std::vector<std::string>> match_ptr)
 {
     zauto_read_lock l(_lock);
 
@@ -215,8 +227,15 @@ void server_state::on_query_restore_status(configuration_query_restore_rpc rpc)
     if (app == nullptr) {
         response.err = ERR_APP_NOT_EXIST;
     } else {
+        int splitter = app->app_name.find_first_of('.');
+        std::string app_name_prefix = app->app_name.substr(0, splitter);
         if (app->status == app_status::AS_DROPPED) {
             response.err = ERR_APP_DROPPED;
+        } else if (match_ptr &&
+                   find(match_ptr->begin(), match_ptr->end(), "*") == match_ptr->end() &&
+                   find(match_ptr->begin(), match_ptr->end(), app_name_prefix) ==
+                       match_ptr->end()) {
+            response.err = ERR_ACL_DENY;
         } else {
             response.restore_progress.resize(app->partition_count,
                                              cold_backup_constant::PROGRESS_FINISHED);

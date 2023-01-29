@@ -336,9 +336,9 @@ public:
 
     const std::string &backup_root() const { return _backup_root; }
     const std::string &policy_root() const { return _policy_meta_root; }
-    void add_backup_policy(dsn::message_ex* msg);
+    void add_backup_policy(dsn::message_ex* msg, std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
     void query_backup_policy(query_backup_policy_rpc rpc);
-    void modify_backup_policy(configuration_modify_backup_policy_rpc rpc);
+    void modify_backup_policy(configuration_modify_backup_policy_rpc rpc, std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
     void start_backup_app(start_backup_app_rpc rpc);
     void query_backup_status(query_backup_status_rpc rpc);
 

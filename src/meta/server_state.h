@@ -147,8 +147,9 @@ public:
     void rename_app(configuration_rename_app_rpc rpc);
     void list_apps(const configuration_list_apps_request &request,
                    configuration_list_apps_response &response,
-                   std::shared_ptr<std::vector<std::string>> match = nullptr);
-    void restore_app(dsn::message_ex *msg);
+                   std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
+    void restore_app(dsn::message_ex *msg,
+                     std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
 
     // app env operations
     void set_app_envs(const app_env_rpc &env_rpc);
@@ -171,7 +172,8 @@ public:
                            configuration_recovery_response &response);
     void on_recv_restore_report(configuration_report_restore_status_rpc rpc);
 
-    void on_query_restore_status(configuration_query_restore_rpc rpc);
+    void on_query_restore_status(configuration_query_restore_rpc rpc,
+                                 std::shared_ptr<std::vector<std::string>> match_ptr = nullptr);
 
     // manual compaction
     void on_start_manual_compact(start_manual_compact_rpc rpc);

@@ -57,6 +57,11 @@ DSN_DEFINE_uint64(meta_server,
 DSN_TAG_VARIABLE(min_live_node_count_for_unfreeze, FT_MUTABLE);
 DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
                      [](uint64_t min_live_node_count) -> bool { return min_live_node_count > 0; });
+DSN_DEFINE_uint32(
+    "replication",
+    update_ranger_policy_interval_sec,
+    5,
+    "The interval seconds meta server to pull the latest access control policy from Ranger server");
 
 DSN_DEFINE_int32(replication,
                  lb_interval_ms,
@@ -284,7 +289,7 @@ void meta_service::start_service()
                                    this->_policy_provider->update();
                                }
                            },
-                           std::chrono::seconds(_opts.update_ranger_policy_interval_s),
+                           std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
                            server_state::sStateHash);
 
     tasking::enqueue_timer(LPC_META_STATE_NORMAL,
@@ -578,15 +583,17 @@ void meta_service::on_rename_app(configuration_rename_app_rpc rpc)
 
 void meta_service::on_recall_app(dsn::message_ex *req)
 {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
     configuration_recall_app_response response;
-    if (!check_status_with_msg(req, response)) {
+    if (!check_status_with_msg(req, response, match_ptr)) {
         return;
     }
 
     req->add_ref();
     tasking::enqueue(LPC_META_STATE_NORMAL,
                      nullptr,
-                     std::bind(&server_state::recall_app, _state.get(), req),
+                     std::bind(&server_state::recall_app, _state.get(), req, match_ptr),
                      server_state::sStateHash);
 }
 
@@ -781,7 +788,19 @@ void meta_service::on_control_meta_level(configuration_meta_control_rpc rpc)
 
 void meta_service::on_propose_balancer(configuration_balancer_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    int32_t app_id = rpc.request().gpid.get_app_id();
+    if (_state->get_app(app_id) == nullptr) {
+        rpc.response().err = ERR_INVALID_PARAMETERS;
+        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
+        return;
+    }
+    const std::string app_name = _state->get_app(app_id)->app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
         return;
     }
 
@@ -821,19 +840,24 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
     configuration_create_app_response response;
-    if (!check_status_with_msg(req, response)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status_with_msg(req, response, match_ptr)) {
         return;
     }
 
     req->add_ref();
-    tasking::enqueue(
-        LPC_RESTORE_BACKGROUND, nullptr, std::bind(&server_state::restore_app, _state.get(), req));
+    tasking::enqueue(LPC_RESTORE_BACKGROUND,
+                     nullptr,
+                     std::bind(&server_state::restore_app, _state.get(), req, match_ptr));
 }
 
 void meta_service::on_add_backup_policy(dsn::message_ex *req)
 {
     configuration_add_backup_policy_response response;
-    if (!check_status_with_msg(req, response)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status_with_msg(req, response, match_ptr)) {
         return;
     }
 
@@ -843,9 +867,10 @@ void meta_service::on_add_backup_policy(dsn::message_ex *req)
         reply(req, response);
     } else {
         req->add_ref();
-        tasking::enqueue(LPC_DEFAULT_CALLBACK,
-                         nullptr,
-                         std::bind(&backup_service::add_backup_policy, _backup_handler.get(), req));
+        tasking::enqueue(
+            LPC_DEFAULT_CALLBACK,
+            nullptr,
+            std::bind(&backup_service::add_backup_policy, _backup_handler.get(), req, match_ptr));
     }
 }
 
@@ -869,7 +894,9 @@ void meta_service::on_query_backup_policy(query_backup_policy_rpc policy_rpc)
 
 void meta_service::on_modify_backup_policy(configuration_modify_backup_policy_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
         return;
     }
 
@@ -880,15 +907,29 @@ void meta_service::on_modify_backup_policy(configuration_modify_backup_policy_rp
         tasking::enqueue(
             LPC_DEFAULT_CALLBACK,
             nullptr,
-            std::bind(&backup_service::modify_backup_policy, _backup_handler.get(), rpc));
+            std::bind(
+                &backup_service::modify_backup_policy, _backup_handler.get(), rpc, match_ptr));
     }
 }
 
 void meta_service::on_report_restore_status(configuration_report_restore_status_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
         return;
     }
+    int32_t app_id = rpc.request().pid.get_app_id();
+    if (_state->get_app(app_id) == nullptr) {
+        rpc.response().err = ERR_INVALID_PARAMETERS;
+        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
+        return;
+    }
+    const std::string app_name = _state->get_app(app_id)->app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
+        return;
+    }
+    configuration_add_backup_policy_response response;
 
     tasking::enqueue(LPC_META_STATE_NORMAL,
                      nullptr,
@@ -897,13 +938,16 @@ void meta_service::on_report_restore_status(configuration_report_restore_status_
 
 void meta_service::on_query_restore_status(configuration_query_restore_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
         return;
     }
 
-    tasking::enqueue(LPC_META_STATE_NORMAL,
-                     nullptr,
-                     std::bind(&server_state::on_query_restore_status, _state.get(), rpc));
+    tasking::enqueue(
+        LPC_META_STATE_NORMAL,
+        nullptr,
+        std::bind(&server_state::on_query_restore_status, _state.get(), rpc, match_ptr));
 }
 
 void meta_service::on_add_duplication(duplication_add_rpc rpc)
@@ -998,7 +1042,12 @@ void meta_service::initialize_duplication_service()
 
 void meta_service::update_app_env(app_env_rpc env_rpc)
 {
-    if (!check_status(env_rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(env_rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(env_rpc, match_ptr)) {
         return;
     }
 
@@ -1031,7 +1080,19 @@ void meta_service::update_app_env(app_env_rpc env_rpc)
 
 void meta_service::ddd_diagnose(ddd_diagnose_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    int32_t app_id = rpc.request().pid.get_app_id();
+    if (_state->get_app(app_id) == nullptr) {
+        rpc.response().err = ERR_INVALID_PARAMETERS;
+        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
+        return;
+    }
+    const std::string app_name = _state->get_app(app_id)->app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
         return;
     }
 
@@ -1042,7 +1103,12 @@ void meta_service::ddd_diagnose(ddd_diagnose_rpc rpc)
 
 void meta_service::on_start_partition_split(start_split_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1058,7 +1124,12 @@ void meta_service::on_start_partition_split(start_split_rpc rpc)
 
 void meta_service::on_control_partition_split(control_split_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1075,7 +1146,12 @@ void meta_service::on_control_partition_split(control_split_rpc rpc)
 
 void meta_service::on_query_partition_split(query_split_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1089,7 +1165,14 @@ void meta_service::on_query_partition_split(query_split_rpc rpc)
 
 void meta_service::on_register_child_on_meta(register_child_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    const auto &request = rpc.request();
+    const std::string &app_name = request.app.app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
         return;
     }
 
@@ -1101,7 +1184,12 @@ void meta_service::on_register_child_on_meta(register_child_rpc rpc)
 
 void meta_service::on_notify_stop_split(notify_stop_split_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1117,7 +1205,12 @@ void meta_service::on_notify_stop_split(notify_stop_split_rpc rpc)
 
 void meta_service::on_query_child_state(query_child_state_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
     if (_split_svc == nullptr) {
@@ -1130,7 +1223,12 @@ void meta_service::on_query_child_state(query_child_state_rpc rpc)
 
 void meta_service::on_start_bulk_load(start_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1144,7 +1242,12 @@ void meta_service::on_start_bulk_load(start_bulk_load_rpc rpc)
 
 void meta_service::on_control_bulk_load(control_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1161,7 +1264,12 @@ void meta_service::on_control_bulk_load(control_bulk_load_rpc rpc)
 
 void meta_service::on_query_bulk_load_status(query_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1175,7 +1283,12 @@ void meta_service::on_query_bulk_load_status(query_bulk_load_rpc rpc)
 
 void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
 
@@ -1192,7 +1305,19 @@ void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 
 void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    int32_t app_id = rpc.request().app_id;
+    if (_state->get_app(app_id) == nullptr) {
+        rpc.response().err = ERR_INVALID_PARAMETERS;
+        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
+        return;
+    }
+    const std::string app_name = _state->get_app(app_id)->app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
         return;
     }
     if (_backup_handler == nullptr) {
@@ -1205,7 +1330,19 @@ void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 
 void meta_service::on_query_backup_status(query_backup_status_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    int32_t app_id = rpc.request().app_id;
+    if (_state->get_app(app_id) == nullptr) {
+        rpc.response().err = ERR_INVALID_PARAMETERS;
+        LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);
+        return;
+    }
+    const std::string app_name = _state->get_app(app_id)->app_name;
+    if (!check_status_with_app_name(rpc, match_ptr, app_name)) {
         return;
     }
     if (_backup_handler == nullptr) {
@@ -1224,7 +1361,12 @@ size_t meta_service::get_alive_node_count() const
 
 void meta_service::on_start_manual_compact(start_manual_compact_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1234,7 +1376,12 @@ void meta_service::on_start_manual_compact(start_manual_compact_rpc rpc)
 
 void meta_service::on_query_manual_compact_status(query_manual_compact_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
+        return;
+    }
+    if (!check_status_with_app_name(rpc, match_ptr)) {
         return;
     }
     tasking::enqueue(LPC_META_STATE_NORMAL,
@@ -1245,10 +1392,14 @@ void meta_service::on_query_manual_compact_status(query_manual_compact_rpc rpc)
 // ThreadPool: THREAD_POOL_META_SERVER
 void meta_service::on_get_max_replica_count(configuration_get_max_replica_count_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
         return;
     }
-
+    if (!check_status_with_app_name(rpc, match_ptr)) {
+        return;
+    }
     tasking::enqueue(LPC_META_STATE_NORMAL,
                      tracker(),
                      std::bind(&server_state::get_max_replica_count, _state.get(), rpc),
@@ -1258,10 +1409,14 @@ void meta_service::on_get_max_replica_count(configuration_get_max_replica_count_
 // ThreadPool: THREAD_POOL_META_SERVER
 void meta_service::on_set_max_replica_count(configuration_set_max_replica_count_rpc rpc)
 {
-    if (!check_status(rpc)) {
+    std::vector<std::string> match;
+    auto match_ptr = std::make_shared<std::vector<std::string>>(match);
+    if (!check_status(rpc, nullptr, match_ptr)) {
         return;
     }
-
+    if (!check_status_with_app_name(rpc, match_ptr)) {
+        return;
+    }
     tasking::enqueue(LPC_META_STATE_NORMAL,
                      tracker(),
                      std::bind(&server_state::set_max_replica_count, _state.get(), rpc),
