@@ -532,12 +532,10 @@ void replica::update_ac_allowed_users(const std::map<std::string, std::string> &
 
 void replica::update_ac_ranger_policies(const std::map<std::string, std::string> &envs)
 {
-    std::string ranger_policies;
     auto iter = envs.find(replica_envs::REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES);
     if (iter != envs.end()) {
-        ranger_policies = iter->second;
+        _access_controller->update_ranger_policies(iter->second);
     }
-    _access_controller->update_ranger_policies(ranger_policies);
 }
 
 void replica::update_allow_ingest_behind(const std::map<std::string, std::string> &envs)

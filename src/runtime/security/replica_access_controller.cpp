@@ -19,16 +19,20 @@
 #include "runtime/rpc/network.h"
 #include "runtime/rpc/rpc_message.h"
 #include "utils/fmt_logging.h"
+#include "utils/flags.h"
 
 namespace dsn {
 namespace security {
+DSN_DECLARE_bool(enable_acl);
+DSN_DECLARE_bool(enable_ranger_acl);
+
 replica_access_controller::replica_access_controller(const std::string &name) { _name = name; }
 
 bool replica_access_controller::allowed(message_ex *msg, client_request_replica_type req_type)
 {
     const std::string &user_name = msg->io_session->get_client_username();
-    if (is_disable_ranger_acl()) {
-        if (is_super_user_or_disable_acl(user_name)) {
+    if (!FLAGS_enable_ranger_acl) {
+        if (!FLAGS_enable_acl || is_super_user(user_name)) {
             return true;
         }
         {
@@ -38,7 +42,7 @@ bool replica_access_controller::allowed(message_ex *msg, client_request_replica_
             // they are finally ensured to be fully upgraded, they can specify some usernames to ACL
             // and the table will be truly protected.
             if (!_allowed_users.empty() && _allowed_users.find(user_name) == _allowed_users.end()) {
-                LOG_INFO_F("{}: user_name {} doesn't exist in acls map", _name, user_name);
+                LOG_INFO_F("{}: user_name({}) doesn't exist in acls map", _name, user_name);
                 return false;
             }
             return true;
@@ -75,7 +79,7 @@ void replica_access_controller::update(const std::string &users)
     }
 }
 
-void replica_access_controller::update_ranger_policies(std::string &policies)
+void replica_access_controller::update_ranger_policies(const std::string &policies)
 {
     {
         utils::auto_read_lock l(_lock);
@@ -88,8 +92,9 @@ void replica_access_controller::update_ranger_policies(std::string &policies)
         utils::auto_write_lock l(_lock);
         _env_policies = policies;
         dsn::json::json_forwarder<ranger::policy_priority_level>::decode(
-            dsn::blob::create_from_bytes(std::move(policies)), tmp_policies);
+            dsn::blob::create_from_bytes(std::move(_env_policies)), tmp_policies);
         _ranger_policies = std::move(tmp_policies);
+        _env_policies = policies;
     }
 }
 

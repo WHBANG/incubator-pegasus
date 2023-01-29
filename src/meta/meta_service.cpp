@@ -58,14 +58,14 @@ DSN_TAG_VARIABLE(min_live_node_count_for_unfreeze, FT_MUTABLE);
 DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
                      [](uint64_t min_live_node_count) -> bool { return min_live_node_count > 0; });
 
-#define GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id)                                            \
+#define GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id)                                  \
     do {                                                                                           \
-        if (_state->get_app(app_id) == nullptr) {                                                  \
+        if (!_state->get_app(app_id)) {                                                            \
             rpc.response().err = ERR_INVALID_PARAMETERS;                                           \
-            LOG_WARNING_F("reject request with ERR_INVALID_APP_NAME, app_id = {}", app_id);        \
+            LOG_WARNING_F("reject request on app_id = {}", app_id);                                \
             return;                                                                                \
         }                                                                                          \
-        const std::string app_name = _state->get_app(app_id)->app_name;                            \
+        const std::string &app_name = _state->get_app(app_id)->app_name;                           \
         if (!check_status_and_authz(rpc, nullptr, app_name)) {                                     \
             return;                                                                                \
         }                                                                                          \
@@ -527,8 +527,8 @@ int meta_service::check_leader(dsn::message_ex *req, dsn::rpc_address *forward_a
 // table operations
 void meta_service::on_create_app(dsn::message_ex *req)
 {
-    if (!check_status_with_msg<configuration_create_app_request, configuration_create_app_response>(
-            req)) {
+    if (!check_status_and_authz_with_msg<configuration_create_app_request,
+                                         configuration_create_app_response>(req)) {
         return;
     }
 
@@ -541,8 +541,8 @@ void meta_service::on_create_app(dsn::message_ex *req)
 
 void meta_service::on_drop_app(dsn::message_ex *req)
 {
-    if (!check_status_with_msg<configuration_drop_app_request, configuration_drop_app_response>(
-            req)) {
+    if (!check_status_and_authz_with_msg<configuration_drop_app_request,
+                                         configuration_drop_app_response>(req)) {
         return;
     }
 
@@ -571,9 +571,8 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     configuration_recall_app_response response;
     dsn::message_ex *copied_req = message_ex::copy_message_no_reply(*req);
     dsn::unmarshall(copied_req, request);
-    std::shared_ptr<app_state> target_app;
-    target_app = _state->get_app(request.app_id);
-    if (target_app == nullptr) {
+    auto target_app = _state->get_app(request.app_id);
+    if (!target_app) {
         response.err = ERR_APP_NOT_EXIST;
         reply(req, response);
         return;
@@ -586,7 +585,7 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     // check new_app_name reasonable.
     // when the ranger acl is enabled, ensure that the prefix of new_app_name is consistent with
     // old, or it is empty
-    if (!_access_controller->is_disable_ranger_acl() && !request.new_app_name.empty()) {
+    if (_access_controller->is_enable_ranger_acl() && !request.new_app_name.empty()) {
         std::string app_name_prefix;
         _access_controller->parse_ranger_policy_database_name(app_name, app_name_prefix);
         std::string new_app_name_prefix;
@@ -612,7 +611,7 @@ void meta_service::on_list_apps(configuration_list_apps_rpc rpc)
         return;
     }
     dsn::message_ex *msg = nullptr;
-    if (!_access_controller->is_disable_ranger_acl()) {
+    if (_access_controller->is_enable_ranger_acl()) {
         msg = rpc.dsn_request();
     }
     _state->list_apps(rpc.request(), rpc.response(), msg);
@@ -795,7 +794,7 @@ void meta_service::on_control_meta_level(configuration_meta_control_rpc rpc)
 void meta_service::on_propose_balancer(configuration_balancer_rpc rpc)
 {
     int32_t app_id = rpc.request().gpid.get_app_id();
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
     const configuration_balancer_request &request = rpc.request();
     LOG_INFO("get proposal balancer request, gpid({})", request.gpid);
     _state->on_propose_balancer(request, rpc.response());
@@ -831,8 +830,8 @@ void meta_service::on_start_recovery(configuration_recovery_rpc rpc)
 
 void meta_service::on_start_restore(dsn::message_ex *req)
 {
-    if (!check_status_with_msg<configuration_restore_request, configuration_create_app_response>(
-            req)) {
+    if (!check_status_and_authz_with_msg<configuration_restore_request,
+                                         configuration_create_app_response>(req)) {
         return;
     }
 
@@ -1217,7 +1216,7 @@ void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 {
     int32_t app_id = rpc.request().app_id;
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;
@@ -1229,7 +1228,7 @@ void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 void meta_service::on_query_backup_status(query_backup_status_rpc rpc)
 {
     int32_t app_id = rpc.request().app_id;
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS(app_id);
+    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;

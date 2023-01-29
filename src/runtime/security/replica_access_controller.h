@@ -29,7 +29,7 @@ public:
     explicit replica_access_controller(const std::string &name);
     bool allowed(message_ex *msg, client_request_replica_type req_type) override;
     void update(const std::string &users) override;
-    void update_ranger_policies(std::string &policies) override;
+    void update_ranger_policies(const std::string &policies) override;
 
 private:
     utils::rw_lock_nr _lock; // [

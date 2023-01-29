@@ -53,15 +53,12 @@ access_controller::access_controller()
 
 access_controller::~access_controller() {}
 
-bool access_controller::is_super_user_or_disable_acl(const std::string &user_name)
-{
-    if (!FLAGS_enable_acl || _super_users.find(user_name) != _super_users.end()) {
-        return true;
-    }
-    return false;
-}
+bool access_controller::is_enable_ranger_acl() { return FLAGS_enable_ranger_acl; }
 
-bool access_controller::is_disable_ranger_acl() { return !FLAGS_enable_ranger_acl; }
+bool access_controller::is_super_user(const std::string &user_name)
+{
+    return _super_users.find(user_name) != _super_users.end();
+}
 
 std::shared_ptr<access_controller>
 create_meta_access_controller(std::shared_ptr<ranger::ranger_policy_provider> policy_provider)
