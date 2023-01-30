@@ -209,13 +209,13 @@ void ranger_resource_policy_manager::update()
 {
     dsn::error_code err_code = load_ranger_resource_policy();
     if (err_code == dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE) {
-        LOG_DEBUG_F("No need to update ACLs policies with error code = {}", err_code);
+        LOG_DEBUG("No need to update ACLs policies with error code = {}", err_code);
         return;
     }
     if (err_code != dsn::ERR_OK) {
-        LOG_WARNING_F("get ranger policy failed, {}.", err_code);
+        LOG_WARNING("get ranger policy failed, {}.", err_code);
     } else {
-        LOG_DEBUG_F("get ranger policy success, {}.", err_code);
+        LOG_DEBUG("get ranger policy success, {}.", err_code);
         dsn::task_ptr after_create_ranger_policy_meta_root = dsn::tasking::create_task(
             LPC_CM_GET_RANGER_POLICY, &_tracker, [this]() { start_sync_ranger_policies(); });
         create_ranger_policy_root(after_create_ranger_policy_meta_root);
@@ -224,18 +224,18 @@ void ranger_resource_policy_manager::update()
 
 void ranger_resource_policy_manager::create_ranger_policy_root(dsn::task_ptr callback)
 {
-    LOG_DEBUG_F("create ranger policy meta root({}) on remote_storage",
-                _ranger_policy_meta_root.c_str());
+    LOG_DEBUG("create ranger policy meta root({}) on remote_storage",
+              _ranger_policy_meta_root.c_str());
     _meta_svc->get_remote_storage()->create_node(
         _ranger_policy_meta_root, LPC_CM_GET_RANGER_POLICY, [this, callback](dsn::error_code err) {
             if (err == dsn::ERR_OK || err == ERR_NODE_ALREADY_EXIST) {
-                LOG_DEBUG_F("create ranger policy meta root({}) succeed, with err ({})",
-                            _ranger_policy_meta_root.c_str(),
-                            err.to_string());
+                LOG_DEBUG("create ranger policy meta root({}) succeed, with err ({})",
+                          _ranger_policy_meta_root.c_str(),
+                          err.to_string());
                 callback->enqueue();
             } else if (err == dsn::ERR_TIMEOUT) {
-                LOG_ERROR_F("create ranger policy meta root({}) timeout, try it later",
-                            _ranger_policy_meta_root.c_str());
+                LOG_ERROR("create ranger policy meta root({}) timeout, try it later",
+                          _ranger_policy_meta_root.c_str());
                 dsn::tasking::enqueue(
                     LPC_CM_GET_RANGER_POLICY,
                     &_tracker,
@@ -251,17 +251,16 @@ void ranger_resource_policy_manager::create_ranger_policy_root(dsn::task_ptr cal
 
 void ranger_resource_policy_manager::start_sync_ranger_policies()
 {
-    LOG_DEBUG_F("start to sync rannger policies to remote storage");
+    LOG_DEBUG("start to sync rannger policies to remote storage");
     dsn::error_code err = sync_policies_to_remote_storage();
     if (err == dsn::ERR_OK) {
-        LOG_DEBUG_F("sync ranger policies to remote storage succeed, with err ({})",
-                    err.to_string());
+        LOG_DEBUG("sync ranger policies to remote storage succeed, with err ({})", err.to_string());
         err = sync_policies_to_cache();
         if (err == dsn::ERR_OK) {
-            LOG_DEBUG_F("updata rannger policies to cahce, err with {}", err.to_string());
+            LOG_DEBUG("updata rannger policies to cahce, err with {}", err.to_string());
             err = sync_policies_to_apps();
             if (err == dsn::ERR_OK) {
-                LOG_DEBUG_F("updata rannger policies to apps, err with {}", err.to_string());
+                LOG_DEBUG("updata rannger policies to apps, err with {}", err.to_string());
             }
         }
     } else {
@@ -279,14 +278,13 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_remote_storage(
         _ranger_policy_meta_root, value, LPC_CM_GET_RANGER_POLICY, [this, &err](dsn::error_code e) {
             err = e;
             if (e == ERR_OK) {
-                LOG_DEBUG_F("updata rannger policies to remote storage succeed, err with {}",
-                            err.to_string());
+                LOG_DEBUG("updata rannger policies to remote storage succeed, err with {}",
+                          err.to_string());
             } else if (e == ERR_TIMEOUT) {
-                LOG_ERROR_F(
-                    "updata rannger policies to remote storage failed, err with = {}, retry "
-                    "after %" PRId64 "(ms)",
-                    err.to_string(),
-                    _load_ranger_policy_retry_delay_ms.count());
+                LOG_ERROR("updata rannger policies to remote storage failed, err with = {}, retry "
+                          "after %" PRId64 "(ms)",
+                          err.to_string(),
+                          _load_ranger_policy_retry_delay_ms.count());
                 dsn::tasking::enqueue(
                     LPC_CM_GET_RANGER_POLICY,
                     &_tracker,
@@ -311,7 +309,7 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_cache()
         _global_policies.swap(_acls[enum_to_string(resource_type::GLOBAL)]);
         dsn::blob value =
             json::json_forwarder<ranger_resource_policies_set>::encode(_global_policies);
-        LOG_DEBUG_F("update global_policies cahce, value = {}", value.to_string());
+        LOG_DEBUG("update global_policies cahce, value = {}", value.to_string());
     }
     {
         utils::auto_write_lock l(_database_policies_lock);
@@ -319,7 +317,7 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_cache()
         _database_policies.swap(_acls[enum_to_string(resource_type::DATABASE)]);
         dsn::blob value =
             json::json_forwarder<ranger_resource_policies_set>::encode(_database_policies);
-        LOG_DEBUG_F("update database_policies cahce, value = {}", value.to_string());
+        LOG_DEBUG("update database_policies cahce, value = {}", value.to_string());
     }
     return dsn::ERR_OK;
 }
@@ -327,13 +325,13 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_cache()
 dsn::error_code ranger_resource_policy_manager::sync_policies_to_apps()
 {
     if (_acls.count(enum_to_string(resource_type::DATABASE_TABLE)) == 0) {
-        LOG_DEBUG_F("database_table is null");
+        LOG_DEBUG("database_table is null");
         return dsn::ERR_OK;
     }
     auto table_policies = _acls[enum_to_string(resource_type::DATABASE_TABLE)];
 
     dsn::blob value = json::json_forwarder<ranger_resource_policies_set>::encode(table_policies);
-    LOG_DEBUG_F("table policy value = {}", value.to_string());
+    LOG_DEBUG("table policy value = {}", value.to_string());
 
     dsn::replication::configuration_list_apps_response list_apps_resp;
     dsn::replication::configuration_list_apps_request list_apps_req;
@@ -358,8 +356,8 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_apps()
             app_name_prefix_match = lv[0];
             app_name = lv[1];
         } else {
-            LOG_ERROR_F("update app() envs failed with error_code(ERR_INVALID_APP_NAME)",
-                        app.app_name);
+            LOG_ERROR("update app() envs failed with error_code(ERR_INVALID_APP_NAME)",
+                      app.app_name);
             continue;
         }
         auto req = dsn::make_unique<dsn::replication::configuration_update_app_env_request>();
@@ -416,10 +414,10 @@ dsn::error_code ranger_resource_policy_manager::load_ranger_resource_policy()
         // get policy failed from ranger
         if (FLAGS_mandatory_enable_acl) {
             // clear all policy,todo
-            LOG_ERROR_F("get policy failed, clear all policy.");
+            LOG_ERROR("get policy failed, clear all policy.");
         } else {
             // use outdated policy
-            LOG_WARNING_F("get policy failed, use outdataed policy.");
+            LOG_WARNING("get policy failed, use outdataed policy.");
         }
         return dsn::ERR_RANGER_HTTP_GET;
     }
@@ -436,9 +434,9 @@ dsn::error_code ranger_resource_policy_manager::parse(const std::string &resp)
     int ranger_service_version = d["policyVersion"].GetInt();
 
     if (_ranger_service_version == ranger_service_version) {
-        LOG_DEBUG_F("ranger service version: {} VS {}, no need to update policy.",
-                    _ranger_service_version,
-                    ranger_service_version);
+        LOG_DEBUG("ranger service version: {} VS {}, no need to update policy.",
+                  _ranger_service_version,
+                  ranger_service_version);
         return dsn::ERR_RANGER_POLICIES_NO_NEED_UPDATE;
     }
     if (_ranger_service_version == 0) {

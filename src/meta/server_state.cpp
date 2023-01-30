@@ -1392,7 +1392,7 @@ void server_state::list_apps(const configuration_list_apps_request &request,
                              configuration_list_apps_response &response,
                              dsn::message_ex *msg)
 {
-    LOG_DEBUG_F("list app request, status({})", request.status);
+    LOG_DEBUG("list app request, status({})", request.status);
     zauto_read_lock l(_lock);
     for (auto &kv : _all_apps) {
         app_state &app = *(kv.second);

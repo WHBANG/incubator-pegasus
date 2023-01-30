@@ -143,10 +143,10 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
         return "";
     };
     std::string database_name = parse_ranger_policy_database_name(app_name);
-    LOG_DEBUG_F("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
-                user_name,
-                msg->rpc_code(),
-                database_name);
+    LOG_DEBUG("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
+              user_name,
+              msg->rpc_code(),
+              database_name);
     return _ranger_resource_policy_manager->allowed(rpc_code, user_name, database_name);
 }
 

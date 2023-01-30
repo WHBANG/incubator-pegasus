@@ -422,10 +422,10 @@ bool meta_service::check_status_and_authz(TRpcHolder rpc,
     }
     if (!_access_controller->allowed(rpc.dsn_request(), app_name)) {
         rpc.response().err = ERR_ACL_DENY;
-        LOG_INFO_F("not authorized {} to operate on app({}) for user({})",
-                   rpc.dsn_request()->rpc_code(),
-                   app_name,
-                   rpc.dsn_request()->io_session->get_client_username());
+        LOG_INFO("not authorized {} to operate on app({}) for user({})",
+                 rpc.dsn_request()->rpc_code(),
+                 app_name,
+                 rpc.dsn_request()->io_session->get_client_username());
         return false;
     }
     return true;
@@ -454,10 +454,10 @@ bool meta_service::check_status_and_authz_with_reply(message_ex *req,
     }
     if (!_access_controller->allowed(req, app_name)) {
         response_struct.err = ERR_ACL_DENY;
-        LOG_INFO_F("not authorized {} to operate on app({}) for user({})",
-                   req->rpc_code(),
-                   app_name,
-                   req->io_session->get_client_username());
+        LOG_INFO("not authorized {} to operate on app({}) for user({})",
+                 req->rpc_code(),
+                 app_name,
+                 req->io_session->get_client_username());
         reply(req, response_struct);
         return false;
     }

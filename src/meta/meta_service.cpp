@@ -62,7 +62,7 @@ DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
     do {                                                                                           \
         if (!_state->get_app(app_id)) {                                                            \
             rpc.response().err = ERR_INVALID_PARAMETERS;                                           \
-            LOG_WARNING_F("reject request on app_id = {}", app_id);                                \
+            LOG_WARNING("reject request on app_id = {}", app_id);                                  \
             return;                                                                                \
         }                                                                                          \
         const std::string &app_name = _state->get_app(app_id)->app_name;                           \

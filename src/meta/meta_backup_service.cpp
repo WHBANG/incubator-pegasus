@@ -1504,16 +1504,16 @@ void backup_service::modify_backup_policy(configuration_modify_backup_policy_rpc
             auto access_controller = _meta_svc->get_access_controller();
             // TODO: if app is dropped, how to process
             if (app == nullptr) {
-                LOG_WARNING_F("{}: add app to policy failed, because invalid app({}), ignore it",
-                              cur_policy.policy_name,
-                              appid);
+                LOG_WARNING("{}: add app to policy failed, because invalid app({}), ignore it",
+                            cur_policy.policy_name,
+                            appid);
                 continue;
             }
             if (access_controller->is_enable_ranger_acl() &&
                 !access_controller->allowed(rpc.dsn_request(), app->app_name)) {
-                LOG_WARNING_F("not authorized to modify backup policy({}) for app id: {}, skip it",
-                              cur_policy.policy_name,
-                              appid);
+                LOG_WARNING("not authorized to modify backup policy({}) for app id: {}, skip it",
+                            cur_policy.policy_name,
+                            appid);
                 continue;
             }
             valid_app_ids_to_add.emplace_back(appid);
