@@ -123,25 +123,6 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     if (_allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end()) {
         return true;
     }
-    auto parse_ranger_policy_database_name = [](const std::string &app_name) -> std::string {
-        std::vector<std::string> lv;
-        std::size_t previous = 0;
-        std::size_t current = app_name.find('.');
-        while (current != std::string::npos) {
-            if (current > previous) {
-                lv.emplace_back(app_name.substr(previous, current - previous));
-            }
-            if (lv.size() > 2) {
-                return "";
-            }
-            previous = current + 1;
-            current = app_name.find('.', previous);
-        }
-        if (previous != app_name.size() && lv.size() == 1) {
-            return lv[0];
-        }
-        return "";
-    };
     std::string database_name = parse_ranger_policy_database_name(app_name);
     LOG_DEBUG("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
               user_name,

@@ -243,21 +243,21 @@ public:
         }
         const auto &pid = request.pid;
         replica_ptr rep = get_replica(pid);
-        if (rep) {
-            dsn::message_ex *msg = reply.response_message();
-            if (!rep->access_controller_allowed(msg,
-                                                security::client_request_replica_type::KRead)) {
-                TRespType resp;
-                resp.error = ERR_ACL_DENY;
-                reply(resp);
-                return false;
-            }
-            return true;
+
+        if (!rep) {
+            TRespType resp;
+            resp.error = ERR_OBJECT_NOT_FOUND;
+            reply(resp);
+            return false;
         }
-        TRespType resp;
-        resp.error = ERR_OBJECT_NOT_FOUND;
-        reply(resp);
-        return false;
+        dsn::message_ex *msg = reply.response_message();
+        if (!rep->access_controller_allowed(msg, security::client_request_replica_type::KRead)) {
+            TRespType resp;
+            resp.error = ERR_ACL_DENY;
+            reply(resp);
+            return false;
+        }
+        return true;
     }
 
     void on_nfs_copy(const ::dsn::service::copy_request &request,

@@ -61,7 +61,10 @@ error_code nfs_node_simple::start()
     return ERR_OK;
 }
 
-void nfs_node_simple::register_async_rpc_handler_for_test() { _server->open_service(); }
+void nfs_node_simple::register_async_rpc_handler_for_test()
+{
+    _server->open_nfs_service_for_test();
+}
 
 error_code nfs_node_simple::stop()
 {
@@ -79,7 +82,7 @@ void nfs_node_simple::on_copy(const copy_request &request, ::dsn::rpc_replier<co
     _server->on_copy(request, reply);
 }
 
-void nfs_node_simple::on_get_file_size_copy(
+void nfs_node_simple::on_get_file_size(
     const ::dsn::service::get_file_size_request &request,
     ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply)
 {

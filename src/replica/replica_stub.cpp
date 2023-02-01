@@ -1222,7 +1222,7 @@ void replica_stub::on_nfs_get_file_size(
     ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply)
 {
     if (check_status_and_authz_with_reply(request, reply, dsn::service::RPC_NFS_GET_FILE_SIZE)) {
-        _nfs->on_get_file_size_copy(request, reply);
+        _nfs->on_get_file_size(request, reply);
     }
 }
 

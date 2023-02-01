@@ -579,10 +579,8 @@ error_code replica::store_app_info(app_info &info, const std::string &path)
 bool replica::access_controller_allowed(message_ex *msg,
                                         security::client_request_replica_type req_type)
 {
-    if (!_access_controller->is_enable_ranger_acl()) {
-        return true;
-    }
-    return _access_controller->allowed(msg, req_type);
+    return !_access_controller->is_enable_ranger_acl() ||
+           _access_controller->allowed(msg, req_type);
 }
 
 } // namespace replication

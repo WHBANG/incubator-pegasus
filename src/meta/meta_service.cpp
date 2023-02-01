@@ -58,14 +58,16 @@ DSN_TAG_VARIABLE(min_live_node_count_for_unfreeze, FT_MUTABLE);
 DSN_DEFINE_validator(min_live_node_count_for_unfreeze,
                      [](uint64_t min_live_node_count) -> bool { return min_live_node_count > 0; });
 
-#define GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id)                                  \
+#define CHECK_APP_ID_STATUS_AND_AUTHZ(app_id)                                                      \
     do {                                                                                           \
-        if (!_state->get_app(app_id)) {                                                            \
+        const auto &_app_id = (app_id);                                                            \
+        const auto &_app = _state->get_app(_app_id);                                               \
+        if (!_app) {                                                                               \
             rpc.response().err = ERR_INVALID_PARAMETERS;                                           \
-            LOG_WARNING("reject request on app_id = {}", app_id);                                  \
+            LOG_WARNING("reject request on app_id = {}", _app_id);                                 \
             return;                                                                                \
         }                                                                                          \
-        const std::string &app_name = _state->get_app(app_id)->app_name;                           \
+        const std::string &app_name = _app->app_name;                                              \
         if (!check_status_and_authz(rpc, nullptr, app_name)) {                                     \
             return;                                                                                \
         }                                                                                          \
@@ -586,27 +588,9 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     // when the ranger acl is enabled, ensure that the prefix of new_app_name is consistent with
     // old, or it is empty
     if (_access_controller->is_enable_ranger_acl() && !request.new_app_name.empty()) {
-        auto parse_ranger_policy_database_name = [](const std::string &app_name) -> std::string {
-            std::vector<std::string> lv;
-            std::size_t previous = 0;
-            std::size_t current = app_name.find('.');
-            while (current != std::string::npos) {
-                if (current > previous) {
-                    lv.emplace_back(app_name.substr(previous, current - previous));
-                }
-                if (lv.size() > 2) {
-                    return "";
-                }
-                previous = current + 1;
-                current = app_name.find('.', previous);
-            }
-            if (previous != app_name.size() && lv.size() == 1) {
-                return lv[0];
-            }
-            return "";
-        };
-        std::string app_name_prefix = parse_ranger_policy_database_name(app_name);
-        std::string new_app_name_prefix = parse_ranger_policy_database_name(request.new_app_name);
+        std::string app_name_prefix = security::parse_ranger_policy_database_name(app_name);
+        std::string new_app_name_prefix =
+            security::parse_ranger_policy_database_name(request.new_app_name);
         if (app_name_prefix != new_app_name_prefix) {
             response.err = ERR_INVALID_PARAMETERS;
             reply(req, response);
@@ -809,8 +793,7 @@ void meta_service::on_control_meta_level(configuration_meta_control_rpc rpc)
 
 void meta_service::on_propose_balancer(configuration_balancer_rpc rpc)
 {
-    int32_t app_id = rpc.request().gpid.get_app_id();
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
+    CHECK_APP_ID_STATUS_AND_AUTHZ(rpc.request().gpid.get_app_id());
     const configuration_balancer_request &request = rpc.request();
     LOG_INFO("get proposal balancer request, gpid({})", request.gpid);
     _state->on_propose_balancer(request, rpc.response());
@@ -923,19 +906,7 @@ void meta_service::on_report_restore_status(configuration_report_restore_status_
 
 void meta_service::on_query_restore_status(configuration_query_restore_rpc rpc)
 {
-    const configuration_query_restore_request &request = rpc.request();
-    configuration_query_restore_response &response = rpc.response();
-    response.err = ERR_OK;
-
-    std::shared_ptr<app_state> app = _state->get_app(request.restore_app_id);
-    if (app == nullptr) {
-        response.err = ERR_APP_NOT_EXIST;
-        return;
-    }
-    if (!check_status_and_authz(rpc, nullptr, app->app_name)) {
-        return;
-    }
-
+    CHECK_APP_ID_STATUS_AND_AUTHZ(rpc.request().restore_app_id);
     tasking::enqueue(LPC_META_STATE_NORMAL,
                      nullptr,
                      std::bind(&server_state::on_query_restore_status, _state.get(), rpc));
@@ -1066,14 +1037,7 @@ void meta_service::update_app_env(app_env_rpc env_rpc)
 
 void meta_service::ddd_diagnose(ddd_diagnose_rpc rpc)
 {
-    int32_t app_id = rpc.request().pid.get_app_id();
-    if (_state->get_app(app_id) != nullptr) {
-        const std::string &app_name = _state->get_app(app_id)->app_name;
-        if (!check_status_and_authz(rpc, nullptr, app_name)) {
-            return;
-        }
-    }
-
+    CHECK_APP_ID_STATUS_AND_AUTHZ(rpc.request().pid.get_app_id());
     auto &response = rpc.response();
     get_partition_guardian()->get_ddd_partitions(rpc.request().pid, response.partitions);
     response.err = ERR_OK;
@@ -1231,8 +1195,7 @@ void meta_service::on_clear_bulk_load(clear_bulk_load_rpc rpc)
 
 void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 {
-    int32_t app_id = rpc.request().app_id;
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
+    CHECK_APP_ID_STATUS_AND_AUTHZ(rpc.request().app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;
@@ -1243,8 +1206,7 @@ void meta_service::on_start_backup_app(start_backup_app_rpc rpc)
 
 void meta_service::on_query_backup_status(query_backup_status_rpc rpc)
 {
-    int32_t app_id = rpc.request().app_id;
-    GET_APP_NAME_BY_APP_ID_AND_CHECK_STATUS_AND_AUTHZ(app_id);
+    CHECK_APP_ID_STATUS_AND_AUTHZ(rpc.request().app_id);
     if (_backup_handler == nullptr) {
         LOG_ERROR("meta doesn't enable backup service");
         rpc.response().err = ERR_SERVICE_NOT_ACTIVE;

@@ -28,18 +28,12 @@ DSN_DEFINE_bool(security, enable_acl, false, "whether enable access controller o
 
 DSN_DEFINE_bool(security, enable_ranger_acl, false, "whether enable access controller or not");
 
-// DSN_DEFINE_group_validator(enable_ranger_acl_allow, [](std::string &message) -> bool {
-//     if (FLAGS_enable_ranger_acl && !FLAGS_enable_acl) {
-//         return false;
-//     }
-//     return true;
-// });
-
 DSN_DEFINE_string(security, super_users, "", "super user for access controller");
 
 access_controller::access_controller()
 {
     // when FLAGS_enable_ranger_acl is true, FLAGS_enable_acl must be true.
+    // todo: check with DSN_DEFINE_group_validator().
     CHECK(!FLAGS_enable_ranger_acl || FLAGS_enable_acl,
           "when FLAGS_enable_ranger_acl is true, FLAGS_enable_acl must be true too");
     utils::split_args(FLAGS_super_users, _super_users, ',');
@@ -60,9 +54,30 @@ std::shared_ptr<access_controller> create_meta_access_controller(
     return std::make_shared<meta_access_controller>(policy_manager);
 }
 
-std::unique_ptr<access_controller> create_replica_access_controller(const std::string &name)
+std::unique_ptr<access_controller> create_replica_access_controller(const std::string &replica_name)
 {
-    return std::make_unique<replica_access_controller>(name);
+    return std::make_unique<replica_access_controller>(replica_name);
+}
+
+std::string parse_ranger_policy_database_name(const std::string app_name)
+{
+    std::vector<std::string> lv;
+    std::size_t previous = 0;
+    std::size_t current = app_name.find('.');
+    while (current != std::string::npos) {
+        if (current > previous) {
+            lv.emplace_back(app_name.substr(previous, current - previous));
+        }
+        if (lv.size() > 2) {
+            return "";
+        }
+        previous = current + 1;
+        current = app_name.find('.', previous);
+    }
+    if (previous != app_name.size() && lv.size() == 1) {
+        return lv[0];
+    }
+    return "";
 }
 } // namespace security
 } // namespace dsn

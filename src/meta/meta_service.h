@@ -358,7 +358,7 @@ private:
 
     std::shared_ptr<security::access_controller> _access_controller;
 
-    // use apache ranger for access control, which is nullptr when not use
+    // use Apache Ranger for access control, which is nullptr when not use
     std::shared_ptr<ranger::ranger_resource_policy_manager> _ranger_resource_policy_manager;
 
     // indicate which operation is processeding in meta server

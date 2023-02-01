@@ -1757,12 +1757,11 @@ void server_state::drop_partition(std::shared_ptr<app_state> &app, int pidx)
     CHECK_EQ((pc.partition_flags & pc_flags::dropped), 0);
     request.config.partition_flags |= pc_flags::dropped;
 
-    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the
-    // ballot.
-    // Actually it is necessary. Coz we may send a proposal due to the old DDD state
-    // and laterly a update_config may arrive.
-    // An updated ballot annouces a previous state is INVALID and all actions taken
-    // due to the old one should be staled
+    // NOTICE this mis-understanding: if a old state is DDD, we may not need to udpate the ballot.
+    // Actually it is necessary. Coz we may send a proposal due to the old DDD state and laterly a
+    // update_config may arrive.
+    // An updated ballot annouces a previous state is INVALID and all actions taken due to the old
+    // one should be staled
     request.config.ballot++;
 
     if (config_status::pending_remote_sync == cc.stage) {
@@ -2059,8 +2058,7 @@ server_state::construct_apps(const std::vector<query_app_info_response> &query_a
                 // created, and it will NEVER change even if the app is dropped/recalled...
                 if (info != *old_info) // app_info::operator !=
                 {
-                    // compatible for app.duplicating different between primary and secondaries
-                    // in
+                    // compatible for app.duplicating different between primary and secondaries in
                     // 2.1.x, 2.2.x and 2.3.x release
                     CHECK(app_info_compatible_equal(info, *old_info),
                           "conflict app info from ({}) for id({}): new_info({}), old_info({})",

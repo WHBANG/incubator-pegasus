@@ -26,7 +26,10 @@ namespace security {
 DSN_DECLARE_bool(enable_acl);
 DSN_DECLARE_bool(enable_ranger_acl);
 
-replica_access_controller::replica_access_controller(const std::string &name) { _name = name; }
+replica_access_controller::replica_access_controller(const std::string &replica_name)
+{
+    _name = replica_name;
+}
 
 bool replica_access_controller::allowed(message_ex *msg, client_request_replica_type req_type)
 {
@@ -88,13 +91,13 @@ void replica_access_controller::update_policies(const std::string &policies)
         }
     }
     ranger::policy_priority_level tmp_policies;
+    std::string tmp_policies_str = policies;
+    dsn::json::json_forwarder<ranger::policy_priority_level>::decode(
+        dsn::blob::create_from_bytes(std::move(tmp_policies_str)), tmp_policies);
     {
         utils::auto_write_lock l(_lock);
         _env_policies = policies;
-        dsn::json::json_forwarder<ranger::policy_priority_level>::decode(
-            dsn::blob::create_from_bytes(std::move(_env_policies)), tmp_policies);
         _ranger_policies = std::move(tmp_policies);
-        _env_policies = policies;
     }
 }
 

@@ -97,8 +97,8 @@ public:
     virtual void on_copy(const ::dsn::service::copy_request &request,
                          ::dsn::rpc_replier<::dsn::service::copy_response> &reply) = 0;
     virtual void
-    on_get_file_size_copy(const ::dsn::service::get_file_size_request &request,
-                          ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply) = 0;
+    on_get_file_size(const ::dsn::service::get_file_size_request &request,
+                     ::dsn::rpc_replier<::dsn::service::get_file_size_response> &reply) = 0;
     virtual void register_async_rpc_handler_for_test() = 0;
 
 protected:

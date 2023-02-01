@@ -26,7 +26,7 @@ namespace security {
 class replica_access_controller : public access_controller
 {
 public:
-    explicit replica_access_controller(const std::string &name);
+    explicit replica_access_controller(const std::string &replica_name);
     bool allowed(message_ex *msg, client_request_replica_type req_type) override;
     void update_allowed_users(const std::string &users) override;
     void update_policies(const std::string &policies) override;
