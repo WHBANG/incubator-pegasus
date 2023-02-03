@@ -29,11 +29,6 @@ DSN_DEFINE_string(security,
                   "",
                   "allowed list of rpc codes for meta_access_controller");
 
-DSN_DEFINE_uint32(
-    security,
-    update_ranger_policy_interval_sec,
-    5,
-    "The interval seconds meta server to pull the latest access control policy from Ranger server");
 DSN_DECLARE_bool(enable_acl);
 DSN_DECLARE_bool(enable_ranger_acl);
 
@@ -86,20 +81,8 @@ meta_access_controller::meta_access_controller(
                                         "RPC_SPLIT_UPDATE_CHILD_PARTITION_COUNT",
                                         "RPC_BULK_LOAD",
                                         "RPC_GROUP_BULK_LOAD"});
-
-        do_update_ranger_policies();
+        _ranger_resource_policy_manager->start();
     }
-}
-
-void meta_access_controller::do_update_ranger_policies()
-{
-    CHECK(_ranger_resource_policy_manager, "ranger policy can not null");
-    tasking::enqueue_timer(LPC_CM_GET_RANGER_POLICY,
-                           &_tracker,
-                           [this]() { _ranger_resource_policy_manager->update(); },
-                           std::chrono::seconds(FLAGS_update_ranger_policy_interval_sec),
-                           0,
-                           std::chrono::milliseconds(1));
 }
 
 bool meta_access_controller::allowed(message_ex *msg, const std::string &app_name)
@@ -123,7 +106,7 @@ bool meta_access_controller::allowed(message_ex *msg, const std::string &app_nam
     if (_allowed_rpc_code_list.find(rpc_code) != _allowed_rpc_code_list.end()) {
         return true;
     }
-    std::string database_name = parse_ranger_policy_database_name(app_name);
+    std::string database_name = ranger::get_database_name_from_app_name(app_name);
     LOG_DEBUG("ranger access controller with user_name = {}, rpc = {}, database_name = {}",
               user_name,
               msg->rpc_code(),
@@ -137,7 +120,7 @@ void meta_access_controller::register_allowed_rpc_code_list(
     _allowed_rpc_code_list.clear();
     for (const auto &rpc_code : rpc_list) {
         auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
-        CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code({})", rpc_code);
+        CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code.");
 
         _allowed_rpc_code_list.insert(code);
     }

@@ -48,8 +48,8 @@ public:
     // The rpc_handler is actually registered replica_stub.cpp, which is saved here for testing
     void open_nfs_service_for_test()
     {
-        register_async_rpc_handler_for_test(RPC_NFS_COPY, "copy", &nfs_service_impl::on_copy);
-        register_async_rpc_handler_for_test(
+        register_async_rpc_handler(RPC_NFS_COPY, "copy", &nfs_service_impl::on_copy);
+        register_async_rpc_handler(
             RPC_NFS_GET_FILE_SIZE, "get_file_size", &nfs_service_impl::on_get_file_size);
     }
 

@@ -21,10 +21,6 @@
 
 namespace dsn {
 namespace ranger {
-
-std::vector<std::string> ranger_resource_policy::_policy_item_list = {
-    "policyItems", "denyPolicyItems", "allowExceptions", "denyExceptions"};
-
 void ranger_resource_policy::default_database_resource_builder(ranger_resource_policy &acl)
 {
     acl._resource_name = "defalut database policy";

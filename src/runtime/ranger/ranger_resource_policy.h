@@ -123,6 +123,18 @@ public:
 
     ~ranger_resource_policy() = default;
 
+    // generate a default policy for older versions or old environment.
+    static void default_database_resource_builder(ranger_resource_policy &acl);
+
+    bool operator==(const ranger_resource_policy &other_policy) const
+    {
+        if (_resource_name == other_policy._resource_name)
+            return true;
+        else
+            return false;
+    }
+
+public:
     // resource name
     std::string _resource_name;
 
@@ -140,20 +152,6 @@ public:
 
     DEFINE_JSON_SERIALIZATION(
         _resource_name, _global_values, _database_values, _table_values, _policies)
-
-    // generate a default policy for older versions or old environment.
-    static void default_database_resource_builder(ranger_resource_policy &acl);
-
-    // ranger support priority policy list.
-    static std::vector<std::string> _policy_item_list;
-
-    bool operator==(const ranger_resource_policy &other_policy) const
-    {
-        if (_resource_name == other_policy._resource_name)
-            return true;
-        else
-            return false;
-    }
 };
 
 struct hash_ranger_resource_policy

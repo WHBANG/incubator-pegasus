@@ -42,28 +42,28 @@ public:
     access_controller();
     virtual ~access_controller();
 
-    // update the access controller.
+    // Update the access controller.
     // users - the new allowed users to update
     virtual void update_allowed_users(const std::string &users) {}
 
-    // check whether enable ranger acl
+    // Check whether enable ranger acl
     bool is_enable_ranger_acl();
 
-    // update the access controller policy
+    // Update the access controller policy
     //  policies -  the new ranger policies to update
     virtual void update_policies(const std::string &policies) {}
 
-    // check if the message received is allowd to do something.
+    // Check if the message received is allowd to do something.
     // msg - the message received
     virtual bool allowed(message_ex *msg, client_request_replica_type req_type) { return false; }
 
-    //  access_controller preforms acl.
+    //  Access_controller preforms acl.
     //  msg - the message received
     //  app_name - tables involved in acl
     virtual bool allowed(message_ex *msg, const std::string &app_name = "") { return false; }
 
 protected:
-    // check if user_name is super_user.
+    // Check if user_name is super_user.
     bool is_super_user(const std::string &user_name) const;
     friend class meta_access_controller_test;
 
@@ -75,8 +75,5 @@ std::shared_ptr<access_controller> create_meta_access_controller(
 
 std::unique_ptr<access_controller>
 create_replica_access_controller(const std::string &replica_name);
-
-// parse database from app_name when enable ranger.
-std::string parse_ranger_policy_database_name(const std::string app_name);
 } // namespace security
 } // namespace dsn

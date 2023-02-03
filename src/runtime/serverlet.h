@@ -139,12 +139,6 @@ protected:
     template <typename TResponse>
     void reply(dsn::message_ex *request, const TResponse &resp);
 
-    template <typename TRequest, typename TResponse>
-    bool register_async_rpc_handler_for_test(task_code rpc_code,
-                                             const char *extra_name,
-                                             void (T::*handler)(const TRequest &,
-                                                                rpc_replier<TResponse> &));
-
 public:
     const std::string &name() const { return _name; }
 
@@ -250,22 +244,6 @@ inline void serverlet<T>::reply(dsn::message_ex *request, const TResponse &resp)
     auto msg = request->create_response();
     ::dsn::marshall(msg, resp);
     dsn_rpc_reply(msg);
-}
-
-template <typename T>
-template <typename TRequest, typename TResponse>
-inline bool serverlet<T>::register_async_rpc_handler_for_test(
-    task_code rpc_code,
-    const char *extra_name,
-    void (T::*handler)(const TRequest &, rpc_replier<TResponse> &))
-{
-    rpc_request_handler cb = [this, handler](dsn::message_ex *request) {
-        TRequest req;
-        ::dsn::unmarshall(request, req);
-        rpc_replier<TResponse> replier(request->create_response());
-        (((T *)this)->*(handler))(req, replier);
-    };
-    return dsn_rpc_register_handler(rpc_code, extra_name, cb);
 }
 /*@}*/
 } // end namespace

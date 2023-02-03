@@ -588,9 +588,10 @@ void meta_service::on_recall_app(dsn::message_ex *req)
     // when the ranger acl is enabled, ensure that the prefix of new_app_name is consistent with
     // old, or it is empty
     if (_access_controller->is_enable_ranger_acl() && !request.new_app_name.empty()) {
-        std::string app_name_prefix = security::parse_ranger_policy_database_name(app_name);
+
+        std::string app_name_prefix = ranger::get_database_name_from_app_name(app_name);
         std::string new_app_name_prefix =
-            security::parse_ranger_policy_database_name(request.new_app_name);
+            ranger::get_database_name_from_app_name(request.new_app_name);
         if (app_name_prefix != new_app_name_prefix) {
             response.err = ERR_INVALID_PARAMETERS;
             reply(req, response);
