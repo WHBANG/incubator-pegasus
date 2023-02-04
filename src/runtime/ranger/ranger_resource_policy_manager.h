@@ -96,11 +96,6 @@ private:
     // Sync policies to app_envs(REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES).
     dsn::error_code sync_policies_to_app_envs();
 
-    // Register the matching between rpc and ranger resources.
-    void register_rpc_match_acl(rpc_match_acl_type &resource,
-                                const std::string &rpc_code,
-                                const access_type &type);
-
     // Resolve the policies(json string) into struct `ranger_resource_policy`
     dsn::error_code parse_json_str_to_policies(const std::string &resp);
 
@@ -632,8 +627,14 @@ private:
     std::string _ranger_policies_json_string;
 };
 
+// Register the matching between rpc_code and access contol type in resources.
+void register_rpc_match_acl(rpc_match_acl_type &resource,
+                            const std::vector<std::string> &rpc_code_list,
+                            const access_type &type);
+
 // Check whether the app_name is valid when enable ranger.
-// When using ranger for acl, the constraint app naming rule is `{database_name}.{table_name}`, use
+// When using ranger for acl, the constraint app naming rule is `{database_name}.{table_name}`,
+// use
 // `.` to split database_name and table_name.
 bool is_app_name_vaild(const std::string &app_name);
 

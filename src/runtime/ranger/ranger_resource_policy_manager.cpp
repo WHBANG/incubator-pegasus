@@ -84,64 +84,55 @@ ranger_resource_policy_manager::ranger_resource_policy_manager(
       _meta_svc(meta_svc)
 {
     // RESOURCE_TYPE::GLOBAL - metadata
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_LIST_NODES", access_type::METADATA);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_CLUSTER_INFO", access_type::METADATA);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_LIST_APPS", access_type::METADATA);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_QUERY_DISK_INFO", access_type::METADATA);
+    register_rpc_match_acl(
+        _rpc_match_global_acl,
+        {"RPC_CM_LIST_NODES", "RPC_CM_CLUSTER_INFO", "RPC_CM_LIST_APPS", "RPC_QUERY_DISK_INFO"},
+        access_type::METADATA);
     // RESOURCE_TYPE::GLOBAL - control
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_HTTP_SERVICE", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_CONTROL_META", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CM_START_RECOVERY", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_REPLICA_DISK_MIGRATE", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_ADD_NEW_DISK", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_DETECT_HOTKEY", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_global_acl, "RPC_CLI_CLI_CALL_ACK", access_type::CONTROL);
+    register_rpc_match_acl(_rpc_match_global_acl,
+                           {"RPC_HTTP_SERVICE",
+                            "RPC_CM_CONTROL_META",
+                            "RPC_CM_START_RECOVERY",
+                            "RPC_REPLICA_DISK_MIGRATE",
+                            "RPC_ADD_NEW_DISK",
+                            "RPC_DETECT_HOTKEY",
+                            "RPC_CLI_CLI_CALL_ACK"},
+                           access_type::CONTROL);
     // RESOURCE_TYPE::DATABASE - list
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_LIST_APPS", access_type::LIST);
+    register_rpc_match_acl(_rpc_match_database_acl, {"RPC_CM_LIST_APPS"}, access_type::LIST);
     // RESOURCE_TYPE::DATABASE - create
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_CREATE_APP", access_type::CREATE);
+    register_rpc_match_acl(_rpc_match_database_acl, {"RPC_CM_CREATE_APP"}, access_type::CREATE);
     // RESOURCE_TYPE::DATABASE - drop
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_DROP_APP", access_type::DROP);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_RECALL_APP", access_type::DROP);
+    register_rpc_match_acl(
+        _rpc_match_database_acl, {"RPC_CM_DROP_APP", "RPC_CM_RECALL_APP"}, access_type::DROP);
     // RESOURCE_TYPE::DATABASE - metadata
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_BACKUP_STATUS", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_RESTORE_STATUS", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_DUPLICATION", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_PARTITION_SPLIT", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_BULK_LOAD_STATUS", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_QUERY_MANUAL_COMPACT_STATUS", access_type::METADATA);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_GET_MAX_REPLICA_COUNT", access_type::METADATA);
+    register_rpc_match_acl(_rpc_match_database_acl,
+                           {"RPC_CM_QUERY_BACKUP_STATUS",
+                            "RPC_CM_QUERY_RESTORE_STATUS",
+                            "RPC_CM_QUERY_DUPLICATION",
+                            "RPC_CM_QUERY_PARTITION_SPLIT",
+                            "RPC_CM_QUERY_BULK_LOAD_STATUS",
+                            "RPC_CM_QUERY_MANUAL_COMPACT_STATUS",
+                            "RPC_CM_GET_MAX_REPLICA_COUNT"},
+                           access_type::METADATA);
     // RESOURCE_TYPE::DATABASE - control
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_START_BACKUP_APP", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_START_RESTORE", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_PROPOSE_BALANCER", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_ADD_DUPLICATION", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_MODIFY_DUPLICATION", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_UPDATE_APP_ENV", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_DDD_DIAGNOSE", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_START_PARTITION_SPLIT", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_CONTROL_PARTITION_SPLIT", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_START_BULK_LOAD", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_CONTROL_BULK_LOAD", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_CLEAR_BULK_LOAD", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_START_MANUAL_COMPACT", access_type::CONTROL);
-    register_rpc_match_acl(
-        _rpc_match_database_acl, "RPC_CM_SET_MAX_REPLICA_COUNT", access_type::CONTROL);
-    register_rpc_match_acl(_rpc_match_database_acl, "RPC_CM_RENAME_APP", access_type::CONTROL);
+    register_rpc_match_acl(_rpc_match_database_acl,
+                           {"RPC_CM_START_BACKUP_APP",
+                            "RPC_CM_START_RESTORE",
+                            "RPC_CM_PROPOSE_BALANCER",
+                            "RPC_CM_ADD_DUPLICATION",
+                            "RPC_CM_MODIFY_DUPLICATION",
+                            "RPC_CM_UPDATE_APP_ENV",
+                            "RPC_CM_DDD_DIAGNOSE",
+                            "RPC_CM_START_PARTITION_SPLIT",
+                            "RPC_CM_CONTROL_PARTITION_SPLIT",
+                            "RPC_CM_START_BULK_LOAD",
+                            "RPC_CM_CONTROL_BULK_LOAD",
+                            "RPC_CM_CLEAR_BULK_LOAD",
+                            "RPC_CM_START_MANUAL_COMPACT",
+                            "RPC_CM_SET_MAX_REPLICA_COUNT",
+                            "RPC_CM_RENAME_APP"},
+                           access_type::CONTROL);
 
 #define ADD_ACL_ITEM(x) _access_type_map.insert(std::make_pair(#x, x))
 
@@ -177,6 +168,17 @@ void ranger_resource_policy_manager::register_rpc_match_acl(rpc_match_acl_type &
     auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
     CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code.");
     resource.insert(std::make_pair(code, type));
+}
+
+void register_rpc_match_acl(rpc_match_acl_type &resource,
+                            const std::vector<std::string> &rpc_code_list,
+                            const access_type &type)
+{
+    for (const auto &rpc_code : rpc_code_list) {
+        auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
+        CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code.");
+        resource.insert(std::make_pair(code, type));
+    }
 }
 
 bool ranger_resource_policy_manager::allowed(const int rpc_code,
