@@ -161,15 +161,6 @@ void ranger_resource_policy_manager::start()
                            std::chrono::milliseconds(1));
 }
 
-void ranger_resource_policy_manager::register_rpc_match_acl(rpc_match_acl_type &resource,
-                                                            const std::string &rpc_code,
-                                                            const access_type &type)
-{
-    auto code = task_code::try_get(rpc_code, TASK_CODE_INVALID);
-    CHECK_NE_MSG(code, TASK_CODE_INVALID, "invalid task code.");
-    resource.insert(std::make_pair(code, type));
-}
-
 void register_rpc_match_acl(rpc_match_acl_type &resource,
                             const std::vector<std::string> &rpc_code_list,
                             const access_type &type)
