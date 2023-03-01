@@ -33,6 +33,7 @@ namespace ranger {
 // ACL type defined in Range service for RPC matching policy
 enum class access_type : uint8_t
 {
+    KInvalid = 0,
     KRead = 1,
     KWrite = 1 << 1,
     KCreate = 1 << 2,
@@ -41,6 +42,18 @@ enum class access_type : uint8_t
     KMetadata = 1 << 5,
     KControl = 1 << 6
 };
+
+ENUM_BEGIN(access_type, access_type::KInvalid)
+ENUM_REG(access_type::KRead)
+ENUM_REG(access_type::KWrite)
+ENUM_REG(access_type::KCreate)
+ENUM_REG(access_type::KDrop)
+ENUM_REG(access_type::KList)
+ENUM_REG(access_type::KMetadata)
+ENUM_REG(access_type::KControl)
+ENUM_END(access_type)
+
+ENUM_TYPE_SERIALIZATION(access_type, access_type::KInvalid)
 
 extern access_type operator|(access_type lhs, access_type rhs);
 
@@ -51,6 +64,8 @@ struct policy_item
 {
     access_type access_types;
     std::unordered_set<std::string> users;
+
+    DEFINE_JSON_SERIALIZATION(access_types, users);
 
     // Check if the 'acl_type' - 'user_name' pair is matched to the policy.
     // Return true if it is matched, otherwise return false.
@@ -68,6 +83,11 @@ struct acl_policies
     std::vector<policy_item> deny_policies;
     std::vector<policy_item> deny_policies_exclude;
 
+    DEFINE_JSON_SERIALIZATION(allow_policies,
+                              allow_policies_exclude,
+                              deny_policies,
+                              deny_policies_exclude);
+
     // Check whether the 'user_name' is allowed to access the resource by type of 'ac_type'.
     bool allowed(const access_type &ac_type, const std::string &user_name) const;
 };
@@ -79,6 +99,8 @@ struct ranger_resource_policy
     std::unordered_set<std::string> database_names;
     std::unordered_set<std::string> table_names;
     acl_policies policies;
+
+    DEFINE_JSON_SERIALIZATION(name, database_names, table_names, policies)
 };
 
 } // namespace ranger
