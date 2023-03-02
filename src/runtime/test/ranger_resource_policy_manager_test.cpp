@@ -39,7 +39,13 @@ TEST(ranger_resource_policy_manager_test, parse_policies_from_json_for_test)
     doc.Parse(data.c_str());
     ranger::parse_policies_from_json_for_test(doc, policies);
 
-    ASSERT_EQ(2, policies.size());
+    EXPECT_EQ(2, policies.size());
+
+    ASSERT_EQ(access_type::KCreate | access_type::KDrop | access_type::KList |
+                  access_type::KMetadata | access_type::KControl,
+              policies[0].access_types);
+
+    ASSERT_EQ(access_type::KRead | access_type::KWrite, policies[1].access_types);
 
     struct test_case
     {
