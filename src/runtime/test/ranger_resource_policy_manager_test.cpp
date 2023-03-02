@@ -26,18 +26,31 @@ namespace ranger {
 TEST(ranger_resource_policy_manager_test, parse_policies_from_json_for_test)
 {
     std::string data =
-        "[{\"accesses\":[{\"type\":\"create\",\"isAllowed\":true},{\"type\":\"drop\",\"isAllowed\":"
-        "true},{\"type\":\"control\",\"isAllowed\":true},{\"type\":\"metadata\",\"isAllowed\":true}"
-        ",{\"type\":\"list\",\"isAllowed\":true}],\"users\":[\"user1\",\"user2\"],\"groups\":[],"
-        "\"roles\":[],\"conditions\":[],\"delegateAdmin\":true},{\"accesses\":[{\"type\":\"read\","
-        "\"isAllowed\":true},{\"type\":\"write\",\"isAllowed\":true}],\"users\":[\"user2\"],"
-        "\"groups\":[],\"roles\":[],\"conditions\":[],\"delegateAdmin\":true}]";
+        R"([{"accesses":)" +
+        R"([{"type":"create","isAllowed":true},)" +
+        R"({"type":"drop","isAllowed":true},)" +
+        R"({"type":"control","isAllowed":true},)" +
+        R"({"type":"metadata","isAllowed":true},)" +
+        R"({"type":"list", "isAllowed":true}],)" +
+        R"("users":["user1","user2"],)" +
+        R"("groups":[],)" +
+        R"("roles":[],)" +
+        R"("conditions":[],)" +
+        R"("delegateAdmin":true},)" +
+        R"({"accesses":)" +
+        R"([{"type":"read","isAllowed":true},)" +
+        R"({"type":"write","isAllowed":true}],)" +
+        R"("users":["user2"],)" +
+        R"("groups":[],)" +
+        R"("roles":[],)" +
+        R"("conditions":[],)" +
+        R"("delegateAdmin":true}])";
 
     std::vector<policy_item> policies;
 
     rapidjson::Document doc;
     doc.Parse(data.c_str());
-    ranger::parse_policies_from_json_for_test(doc, policies);
+    ranger_resource_policy_manager::parse_policies_from_json(doc, policies);
 
     EXPECT_EQ(2, policies.size());
 

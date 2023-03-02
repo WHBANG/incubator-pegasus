@@ -62,7 +62,7 @@ extern access_type operator&(access_type lhs, access_type rhs);
 // Ranger policy data structure
 struct policy_item
 {
-    access_type access_types;
+    access_type access_types = access_type::KInvalid;
     std::unordered_set<std::string> users;
 
     DEFINE_JSON_SERIALIZATION(access_types, users);

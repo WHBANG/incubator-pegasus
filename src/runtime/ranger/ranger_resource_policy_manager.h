@@ -36,14 +36,14 @@ enum class resource_type
 {
     KGlobal = 0,
     Kdatabase,
-    KDatabase_table,
+    KDatabaseTable,
     KUnknown,
 };
 
 ENUM_BEGIN(resource_type, resource_type::KUnknown)
 ENUM_REG(resource_type::KGlobal)
 ENUM_REG(resource_type::Kdatabase)
-ENUM_REG(resource_type::KDatabase_table)
+ENUM_REG(resource_type::KDatabaseTable)
 ENUM_END(resource_type)
 
 ENUM_TYPE_SERIALIZATION(resource_type, resource_type::KUnknown)
@@ -65,6 +65,11 @@ public:
     ~ranger_resource_policy_manager() = default;
 
 private:
+    // Parse Ranger ACL policies in JSON format 'data' into 'policies'.
+    static void parse_policies_from_json(const rapidjson::Value &data,
+                                         std::vector<policy_item> &policies);
+
+private:
     // The path where policies to be saved in remote storage.
     std::string _ranger_policy_meta_root;
 
@@ -83,9 +88,8 @@ private:
     all_resource_policies _all_resource_policies;
 
     DEFINE_JSON_SERIALIZATION(_local_policy_version, _all_resource_policies);
+
+    friend class ranger_resource_policy_manager_test;
 };
-// Provide a method to test the 'parse_policies_from_json' function.
-void parse_policies_from_json_for_test(const rapidjson::Value &data,
-                                       std::vector<policy_item> &policies);
 } // namespace ranger
 } // namespace dsn

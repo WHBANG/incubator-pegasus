@@ -73,30 +73,6 @@ std::map<std::string, access_type> access_type_maping({{"READ", access_type::KRe
                                                        {"LIST", access_type::KList},
                                                        {"METADATA", access_type::KMetadata},
                                                        {"CONTROL", access_type::KControl}});
-
-// Parse Ranger ACL policies in JSON format 'data' into 'policies'.
-void parse_policies_from_json(const rapidjson::Value &data, std::vector<policy_item> &policies)
-{
-    CHECK(policies.empty(), "Ranger policy list should not be empty.");
-    RETURN_VOID_IF_NOT_ARRAY(data);
-    for (auto &item : data.GetArray()) {
-        policy_item pi;
-        pi.access_types = access_type::KInvalid;
-        CONTINUE_IF_MISSING_MEMBER(item, "accesses");
-        for (const auto &access : item["accesses"].GetArray()) {
-            if (access["isAllowed"].GetBool()) {
-                std::string type = access["type"].GetString();
-                std::transform(type.begin(), type.end(), type.begin(), toupper);
-                pi.access_types = pi.access_types | access_type_maping[type];
-            }
-        }
-        CONTINUE_IF_MISSING_MEMBER(item, "users");
-        for (const auto &user : item["users"].GetArray()) {
-            pi.users.emplace(user.GetString());
-        }
-        policies.emplace_back(pi);
-    }
-}
 } // anonymous namespace
 
 ranger_resource_policy_manager::ranger_resource_policy_manager(
@@ -159,10 +135,29 @@ ranger_resource_policy_manager::ranger_resource_policy_manager(
                              _ac_type_of_database_rpcs);
 }
 
-void parse_policies_from_json_for_test(const rapidjson::Value &data,
-                                       std::vector<policy_item> &policies)
+void ranger_resource_policy_manager::parse_policies_from_json(const rapidjson::Value &data,
+                                                              std::vector<policy_item> &policies)
 {
-    parse_policies_from_json(data, policies);
+    CHECK(policies.empty(), "Ranger policy list should not be empty.");
+    RETURN_VOID_IF_NOT_ARRAY(data);
+    for (const auto &item : data.GetArray()) {
+        policy_item pi;
+        CONTINUE_IF_MISSING_MEMBER(item, "accesses");
+        for (const auto &access : item["accesses"].GetArray()) {
+            CONTINUE_IF_MISSING_MEMBER(access, "isAllowed");
+            CONTINUE_IF_MISSING_MEMBER(access, "type");
+            if (access["isAllowed"].GetBool()) {
+                std::string type = access["type"].GetString();
+                std::transform(type.begin(), type.end(), type.begin(), toupper);
+                pi.access_types |= access_type_maping[type];
+            }
+        }
+        CONTINUE_IF_MISSING_MEMBER(item, "users");
+        for (const auto &user : item["users"].GetArray()) {
+            pi.users.emplace(user.GetString());
+        }
+        policies.emplace_back(pi);
+    }
 }
 } // namespace ranger
 } // namespace dsn
