@@ -43,26 +43,18 @@ enum class access_type : uint8_t
     KControl = 1 << 6
 };
 
-ENUM_BEGIN(access_type, access_type::KInvalid)
-ENUM_REG(access_type::KRead)
-ENUM_REG(access_type::KWrite)
-ENUM_REG(access_type::KCreate)
-ENUM_REG(access_type::KDrop)
-ENUM_REG(access_type::KList)
-ENUM_REG(access_type::KMetadata)
-ENUM_REG(access_type::KControl)
-ENUM_END(access_type)
-
-ENUM_TYPE_SERIALIZATION(access_type, access_type::KInvalid)
-
 extern access_type operator|(access_type lhs, access_type rhs);
 
 extern access_type operator&(access_type lhs, access_type rhs);
 
+extern access_type &operator|=(access_type &lhs, access_type rhs);
+
+extern uint8_t access_type_to_int8_t(const access_type &ac_type);
+
 // Ranger policy data structure
 struct policy_item
 {
-    access_type access_types = access_type::KInvalid;
+    uint8_t access_types;
     std::unordered_set<std::string> users;
 
     DEFINE_JSON_SERIALIZATION(access_types, users);

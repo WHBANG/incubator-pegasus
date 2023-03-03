@@ -32,9 +32,16 @@ namespace ranger {
     return access_type(static_cast<act>(lhs) & static_cast<act>(rhs));
 }
 
+/*extern*/ access_type &operator|=(access_type &lhs, access_type rhs) { return lhs = lhs | rhs; }
+
 bool policy_item::match(const access_type &ac_type, const std::string &user_name) const
 {
-    return static_cast<bool>(access_types & ac_type) && users.count(user_name) != 0;
+    return (access_types & static_cast<std::underlying_type<access_type>::type>(ac_type)) &&
+           users.count(user_name) != 0;
+}
+/*extern*/ uint8_t access_type_to_int8_t(const access_type &ac_type)
+{
+    return static_cast<std::underlying_type<access_type>::type>(ac_type);
 }
 
 bool acl_policies::allowed(const access_type &ac_type, const std::string &user_name) const

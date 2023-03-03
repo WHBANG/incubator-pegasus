@@ -81,15 +81,15 @@ private:
     // The access type of RPCs which access database level resources.
     access_type_of_rpc_code _ac_type_of_database_rpcs;
 
-    // The Ranger policy version to determine whether to update.
+    // Record the Ranger policy version to determine whether to update.
     int _local_policy_version;
 
     // All Ranger ACL policies.
     all_resource_policies _all_resource_policies;
 
-    DEFINE_JSON_SERIALIZATION(_local_policy_version, _all_resource_policies);
+    DEFINE_JSON_SERIALIZATION(_all_resource_policies);
 
-    friend class ranger_resource_policy_manager_test;
+    FRIEND_TEST(ranger_resource_policy_manager_test, parse_policies_from_json_for_test);
 };
 } // namespace ranger
 } // namespace dsn
