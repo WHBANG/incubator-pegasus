@@ -81,9 +81,6 @@ private:
     // The access type of RPCs which access database level resources.
     access_type_of_rpc_code _ac_type_of_database_rpcs;
 
-    // Record the Ranger policy version to determine whether to update.
-    int _local_policy_version;
-
     // All Ranger ACL policies.
     all_resource_policies _all_resource_policies;
 

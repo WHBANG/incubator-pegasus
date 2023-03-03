@@ -453,6 +453,20 @@ inline bool json_decode_map(const JsonObject &in, TMap &t)
     return true;
 }
 
+template <typename TSet>
+inline bool json_decode_set(const JsonObject &in, TSet &t)
+{
+    dverify(in.IsArray());
+    t.clear();
+
+    for (rapidjson::Value::ConstValueIterator it = in.Begin(); it != in.End(); ++it) {
+        TSet value;
+        dverify(json_forwarder<TSet>::decode(*it, value));
+        dverify(t.emplace(std::move(value)).second);
+    }
+    return true;
+}
+
 template <typename T>
 inline void json_encode(JsonWriter &out, const std::vector<T> &t)
 {
@@ -483,35 +497,19 @@ inline void json_encode(JsonWriter &out, const std::set<T> &t)
 template <typename T>
 inline bool json_decode(const JsonObject &in, std::set<T> &t)
 {
-    dverify(in.IsArray());
-    t.clear();
-
-    for (rapidjson::Value::ConstValueIterator it = in.Begin(); it != in.End(); ++it) {
-        T value;
-        dverify(json_forwarder<T>::decode(*it, value));
-        dverify(t.emplace(std::move(value)).second);
-    }
-    return true;
+    return json_decode_set(in, t);
 }
 
-template <typename T1, typename T2>
-inline void json_encode(JsonWriter &out, const std::unordered_set<T1, T2> &t)
+template <typename T>
+inline void json_encode(JsonWriter &out, const std::unordered_set<T> &t)
 {
     json_encode_iterable(out, t);
 }
 
-template <typename T1, typename T2>
-inline bool json_decode(const JsonObject &in, std::unordered_set<T1, T2> &t)
+template <typename T>
+inline bool json_decode(const JsonObject &in, std::unordered_set<T> &t)
 {
-    dverify(in.IsArray());
-    t.clear();
-
-    for (rapidjson::Value::ConstValueIterator it = in.Begin(); it != in.End(); ++it) {
-        T1 value;
-        dverify(json_forwarder<T1>::decode(*it, value));
-        dverify(t.emplace(std::move(value)).second);
-    }
-    return true;
+    return json_decode_set(in, t);
 }
 
 template <typename T1, typename T2>
