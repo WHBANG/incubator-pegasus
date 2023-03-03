@@ -458,10 +458,9 @@ inline bool json_decode_set(const JsonObject &in, TSet &t)
 {
     dverify(in.IsArray());
     t.clear();
-
     for (rapidjson::Value::ConstValueIterator it = in.Begin(); it != in.End(); ++it) {
-        TSet value;
-        dverify(json_forwarder<TSet>::decode(*it, value));
+        typename TSet::value_type value;
+        dverify(json_forwarder<decltype(value)>::decode(*it, value));
         dverify(t.emplace(std::move(value)).second);
     }
     return true;
