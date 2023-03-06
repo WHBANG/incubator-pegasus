@@ -43,11 +43,11 @@ enum class access_type : uint8_t
     KControl = 1 << 6
 };
 
-extern access_type operator|(access_type lhs, access_type rhs);
+access_type operator|(access_type lhs, access_type rhs);
 
-extern access_type operator&(access_type lhs, access_type rhs);
+access_type operator&(access_type lhs, access_type rhs);
 
-extern access_type &operator|=(access_type &lhs, access_type rhs);
+access_type &operator|=(access_type &lhs, access_type rhs);
 
 uint8_t access_type_to_int8_t(const access_type &ac_type);
 
