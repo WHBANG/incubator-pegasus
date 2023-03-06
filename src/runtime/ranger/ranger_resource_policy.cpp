@@ -39,7 +39,7 @@ bool policy_item::match(const access_type &ac_type, const std::string &user_name
     return (access_types & static_cast<std::underlying_type<access_type>::type>(ac_type)) &&
            users.count(user_name) != 0;
 }
-/*extern*/ uint8_t access_type_to_int8_t(const access_type &ac_type)
+uint8_t access_type_to_int8_t(const access_type &ac_type)
 {
     return static_cast<std::underlying_type<access_type>::type>(ac_type);
 }

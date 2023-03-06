@@ -49,7 +49,7 @@ extern access_type operator&(access_type lhs, access_type rhs);
 
 extern access_type &operator|=(access_type &lhs, access_type rhs);
 
-extern uint8_t access_type_to_int8_t(const access_type &ac_type);
+uint8_t access_type_to_int8_t(const access_type &ac_type);
 
 // Ranger policy data structure
 struct policy_item
