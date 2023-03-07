@@ -35,29 +35,28 @@
 #include <unordered_set>
 #include <vector>
 
+#include <boost/lexical_cast.hpp>
+#include <rapidjson/document.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/writer.h>
-#include <rapidjson/document.h>
 
-#include <boost/lexical_cast.hpp>
-
-#include "utils/api_utilities.h"
-#include "utils/autoref_ptr.h"
-#include "utils/utils.h"
-
-#include "utils/error_code.h"
-#include "utils/threadpool_code.h"
-#include "runtime/task/task_code.h"
+#include "backup_types.h"
+#include "bulk_load_types.h"
 #include "common/gpid.h"
+#include "common/replication_enums.h"
+#include "consensus_types.h"
+#include "duplication_types.h"
 #include "meta_admin_types.h"
 #include "partition_split_types.h"
-#include "duplication_types.h"
-#include "bulk_load_types.h"
-#include "backup_types.h"
-#include "consensus_types.h"
 #include "replica_admin_types.h"
-#include "common/replication_enums.h"
+#include "runtime/task/task_code.h"
+#include "runtime/ranger/ranger_resource_policy.h"
+#include "utils/api_utilities.h"
+#include "utils/autoref_ptr.h"
+#include "utils/error_code.h"
+#include "utils/threadpool_code.h"
+#include "utils/utils.h"
 
 #define JSON_ENCODE_ENTRY(out, prefix, T)                                                          \
     out.Key(#T);                                                                                   \
@@ -335,6 +334,27 @@ INT_TYPE_SERIALIZATION(int8_t)
 INT_TYPE_SERIALIZATION(int16_t)
 INT_TYPE_SERIALIZATION(int32_t)
 INT_TYPE_SERIALIZATION(int64_t)
+
+#define RANGER_ACCESS_TYPE_SERIALIZATION(TName)                                                    \
+    template <typename Writer>                                                                     \
+    inline void json_encode(Writer &out, TName t)                                                  \
+    {                                                                                              \
+        out.Uint64(static_cast<uint64_t>(t));                                                      \
+    }                                                                                              \
+    inline bool json_decode(const JsonObject &in, TName &t)                                        \
+    {                                                                                              \
+        dverify(in.IsUint64());                                                                    \
+        int64_t ans = in.GetUint64();                                                              \
+        int64_t act_min = static_cast<uint64_t>(TName::KInvalid);                                  \
+        int64_t act_max =                                                                          \
+            static_cast<uint64_t>(TName::KRead | TName::KWrite | TName::KCreate | TName::KDrop |   \
+                                  TName::KList | TName::KMetadata | TName::KControl);              \
+        dverify(ans >= act_min && ans <= act_max);                                                 \
+        using act = std::underlying_type<TName>::type;                                             \
+        t = (TName) static_cast<act>(ans);                                                         \
+        return true;                                                                               \
+    }
+RANGER_ACCESS_TYPE_SERIALIZATION(dsn::ranger::access_type)
 
 // json serialization for uint types
 #define UINT_TYPE_SERIALIZATION(TName)                                                             \

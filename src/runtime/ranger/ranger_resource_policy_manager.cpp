@@ -142,18 +142,16 @@ void ranger_resource_policy_manager::parse_policies_from_json(const rapidjson::V
     RETURN_VOID_IF_NOT_ARRAY(data);
     for (const auto &item : data.GetArray()) {
         CONTINUE_IF_MISSING_MEMBER(item, "accesses");
-        access_type acs = access_type::KInvalid;
+        policy_item pi;
         for (const auto &access : item["accesses"].GetArray()) {
             CONTINUE_IF_MISSING_MEMBER(access, "isAllowed");
             CONTINUE_IF_MISSING_MEMBER(access, "type");
             if (access["isAllowed"].GetBool()) {
                 std::string type = access["type"].GetString();
                 std::transform(type.begin(), type.end(), type.begin(), toupper);
-                acs |= access_type_maping[type];
+                pi.access_types |= access_type_maping[type];
             }
         }
-        policy_item pi;
-        pi.access_types = access_type_to_int8_t(acs);
         CONTINUE_IF_MISSING_MEMBER(item, "users");
         for (const auto &user : item["users"].GetArray()) {
             pi.users.emplace(user.GetString());
