@@ -38,14 +38,14 @@ namespace ranger {
 
 #define RETURN_ERR_IF_NOT_ARRAY(obj)                                                               \
     do {                                                                                           \
-        if (!obj.IsArray() || obj.Size() == 0) {                                                   \
+        if (!obj.IsArray() || obj.Empty()) {                                                       \
             return dsn::ERR_RANGER_PARSE_ACL;                                                      \
         }                                                                                          \
     } while (0)
 
 #define RETURN_VOID_IF_NOT_ARRAY(obj)                                                              \
     do {                                                                                           \
-        if (!obj.IsArray() || obj.Size() == 0) {                                                   \
+        if (!obj.IsArray() || obj.Empty()) {                                                       \
             return;                                                                                \
         }                                                                                          \
     } while (0)
@@ -141,7 +141,6 @@ void ranger_resource_policy_manager::parse_policies_from_json(const rapidjson::V
     CHECK(policies.empty(), "Ranger policy list should not be empty.");
     RETURN_VOID_IF_NOT_ARRAY(data);
     for (const auto &item : data.GetArray()) {
-        policy_item pi;
         CONTINUE_IF_MISSING_MEMBER(item, "accesses");
         access_type acs = access_type::KInvalid;
         for (const auto &access : item["accesses"].GetArray()) {
@@ -153,6 +152,7 @@ void ranger_resource_policy_manager::parse_policies_from_json(const rapidjson::V
                 acs |= access_type_maping[type];
             }
         }
+        policy_item pi;
         pi.access_types = access_type_to_int8_t(acs);
         CONTINUE_IF_MISSING_MEMBER(item, "users");
         for (const auto &user : item["users"].GetArray()) {
