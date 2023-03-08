@@ -20,11 +20,6 @@
 namespace dsn {
 namespace ranger {
 
-uint8_t access_type_to_int8_t(const access_type &ac_type)
-{
-    return static_cast<std::underlying_type<access_type>::type>(ac_type);
-}
-
 bool policy_item::match(const access_type &ac_type, const std::string &user_name) const
 {
     return static_cast<bool>(access_types & ac_type) && users.count(user_name) != 0;
