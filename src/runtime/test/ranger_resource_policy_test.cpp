@@ -24,9 +24,8 @@ namespace ranger {
 
 TEST(ranger_resource_policy_test, policy_item_match)
 {
-    policy_item item = {
-        access_type_to_int8_t(access_type::KRead | access_type::KWrite | access_type::KCreate),
-        {"user1", "user2"}};
+    policy_item item = {access_type::KRead | access_type::KWrite | access_type::KCreate,
+                        {"user1", "user2"}};
     struct test_case
     {
         access_type ac_type;
@@ -51,14 +50,11 @@ TEST(ranger_resource_policy_test, policy_item_match)
 TEST(ranger_resource_policy_test, acl_policies_allowed)
 {
     acl_policies policy;
-    policy.allow_policies = {
-        {access_type_to_int8_t(access_type::KRead | access_type::KWrite | access_type::KCreate),
-         {"user1", "user2", "user3", "user4"}}};
-    policy.allow_policies_exclude = {
-        {access_type_to_int8_t(access_type::KWrite | access_type::KCreate), {"user2"}}};
-    policy.deny_policies = {
-        {access_type_to_int8_t(access_type::KRead | access_type::KWrite), {"user3", "user4"}}};
-    policy.deny_policies_exclude = {{access_type_to_int8_t(access_type::KRead), {"user4"}}};
+    policy.allow_policies = {{access_type::KRead | access_type::KWrite | access_type::KCreate,
+                              {"user1", "user2", "user3", "user4"}}};
+    policy.allow_policies_exclude = {{access_type::KWrite | access_type::KCreate, {"user2"}}};
+    policy.deny_policies = {{access_type::KRead | access_type::KWrite, {"user3", "user4"}}};
+    policy.deny_policies_exclude = {{access_type::KRead, {"user4"}}};
     struct test_case
     {
         access_type ac_type;

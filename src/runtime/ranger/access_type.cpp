@@ -36,10 +36,5 @@ access_type operator&(access_type lhs, access_type rhs)
 
 access_type &operator|=(access_type &lhs, access_type rhs) { return lhs = lhs | rhs; }
 
-uint8_t access_type_to_int8_t(const access_type &ac_type)
-{
-    return static_cast<std::underlying_type<access_type>::type>(ac_type);
-}
-
 } // namespace ranger
 } // namespace dsn

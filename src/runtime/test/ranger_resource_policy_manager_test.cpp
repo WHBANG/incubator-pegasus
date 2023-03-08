@@ -72,12 +72,11 @@ TEST(ranger_resource_policy_manager_test, parse_policies_from_json_for_test)
 
     EXPECT_EQ(2, fake_policies.size());
 
-    ASSERT_EQ(access_type_to_int8_t(access_type::KCreate | access_type::KDrop | access_type::KList |
-                                    access_type::KMetadata | access_type::KControl),
+    ASSERT_EQ(access_type::KCreate | access_type::KDrop | access_type::KList |
+                  access_type::KMetadata | access_type::KControl,
               fake_policies[0].access_types);
 
-    ASSERT_EQ(access_type_to_int8_t(access_type::KRead | access_type::KWrite),
-              fake_policies[1].access_types);
+    ASSERT_EQ(access_type::KRead | access_type::KWrite, fake_policies[1].access_types);
 
     struct test_case
     {
@@ -124,15 +123,11 @@ TEST(ranger_resource_policy_manager_test, parse_policies_from_json_for_test)
 TEST(ranger_resource_policy_manager_test, ranger_resource_policy_serialized_test)
 {
     acl_policies fake_policy;
-    fake_policy.allow_policies = {
-        {access_type_to_int8_t(access_type::KRead | access_type::KWrite | access_type::KList),
-         {"user1", "user2", "user3", "user4"}}};
-    fake_policy.allow_policies_exclude = {
-        {access_type_to_int8_t(access_type::KWrite | access_type::KCreate), {"user2"}}};
-    fake_policy.deny_policies = {
-        {access_type_to_int8_t(access_type::KRead | access_type::KWrite), {"user3", "user4"}}};
-    fake_policy.deny_policies_exclude = {
-        {access_type_to_int8_t(access_type::KRead | access_type::KList), {"user4"}}};
+    fake_policy.allow_policies = {{access_type::KRead | access_type::KWrite | access_type::KList,
+                                   {"user1", "user2", "user3", "user4"}}};
+    fake_policy.allow_policies_exclude = {{access_type::KWrite | access_type::KCreate, {"user2"}}};
+    fake_policy.deny_policies = {{access_type::KRead | access_type::KWrite, {"user3", "user4"}}};
+    fake_policy.deny_policies_exclude = {{access_type::KRead | access_type::KList, {"user4"}}};
 
     ranger_resource_policy fake_ranger_resource_policy;
     fake_ranger_resource_policy.name = "pegasus_ranger_test";
