@@ -35,28 +35,31 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/lexical_cast.hpp>
-#include <rapidjson/document.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/writer.h>
+#include <rapidjson/document.h>
 
-#include "backup_types.h"
-#include "bulk_load_types.h"
-#include "common/gpid.h"
-#include "common/replication_enums.h"
-#include "consensus_types.h"
-#include "duplication_types.h"
-#include "meta_admin_types.h"
-#include "partition_split_types.h"
-#include "replica_admin_types.h"
-#include "runtime/task/task_code.h"
-#include "runtime/ranger/ranger_resource_policy.h"
+#include <boost/lexical_cast.hpp>
+
 #include "utils/api_utilities.h"
 #include "utils/autoref_ptr.h"
+#include "utils/utils.h"
+
 #include "utils/error_code.h"
 #include "utils/threadpool_code.h"
-#include "utils/utils.h"
+#include "runtime/task/task_code.h"
+#include "common/gpid.h"
+
+#include "meta_admin_types.h"
+#include "partition_split_types.h"
+#include "duplication_types.h"
+#include "bulk_load_types.h"
+#include "backup_types.h"
+#include "consensus_types.h"
+#include "replica_admin_types.h"
+#include "common/replication_enums.h"
+#include "runtime/ranger/access_type.h"
 
 #define JSON_ENCODE_ENTRY(out, prefix, T)                                                          \
     out.Key(#T);                                                                                   \
