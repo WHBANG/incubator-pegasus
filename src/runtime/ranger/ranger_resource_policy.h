@@ -54,7 +54,7 @@ uint8_t access_type_to_int8_t(const access_type &ac_type);
 // Ranger policy data structure
 struct policy_item
 {
-    uint8_t access_types = 0;
+    access_type access_types = access_type::KInvalid;
     std::unordered_set<std::string> users;
 
     DEFINE_JSON_SERIALIZATION(access_types, users);
