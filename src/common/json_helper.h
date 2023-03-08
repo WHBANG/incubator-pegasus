@@ -335,26 +335,25 @@ INT_TYPE_SERIALIZATION(int16_t)
 INT_TYPE_SERIALIZATION(int32_t)
 INT_TYPE_SERIALIZATION(int64_t)
 
-#define RANGER_ACCESS_TYPE_SERIALIZATION(TName)                                                    \
-    template <typename Writer>                                                                     \
-    inline void json_encode(Writer &out, TName t)                                                  \
-    {                                                                                              \
-        out.Uint64(static_cast<uint64_t>(t));                                                      \
-    }                                                                                              \
-    inline bool json_decode(const JsonObject &in, TName &t)                                        \
-    {                                                                                              \
-        dverify(in.IsUint64());                                                                    \
-        int64_t ans = in.GetUint64();                                                              \
-        int64_t act_min = static_cast<uint64_t>(TName::KInvalid);                                  \
-        int64_t act_max =                                                                          \
-            static_cast<uint64_t>(TName::KRead | TName::KWrite | TName::KCreate | TName::KDrop |   \
-                                  TName::KList | TName::KMetadata | TName::KControl);              \
-        dverify(ans >= act_min && ans <= act_max);                                                 \
-        using act = std::underlying_type<TName>::type;                                             \
-        t = (TName) static_cast<act>(ans);                                                         \
-        return true;                                                                               \
-    }
-RANGER_ACCESS_TYPE_SERIALIZATION(dsn::ranger::access_type)
+template <typename Writer>
+inline void json_encode(Writer &out, TName t)
+{
+    out.Uint64(static_cast<uint64_t>(t));
+}
+
+inline bool json_decode(const JsonObject &in, TName &t)
+{
+    dverify(in.IsUint64());
+    int64_t ans = in.GetUint64();
+    int64_t act_min = static_cast<uint64_t>(TName::KInvalid);
+    int64_t act_max =
+        static_cast<uint64_t>(TName::KRead | TName::KWrite | TName::KCreate | TName::KDrop |
+                              TName::KList | TName::KMetadata | TName::KControl);
+    dverify(ans >= act_min && ans <= act_max);
+    using act = std::underlying_type<TName>::type;
+    t = (TName) static_cast<act>(ans);
+    return true;
+}
 
 // json serialization for uint types
 #define UINT_TYPE_SERIALIZATION(TName)                                                             \
