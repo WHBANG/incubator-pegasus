@@ -336,22 +336,24 @@ INT_TYPE_SERIALIZATION(int32_t)
 INT_TYPE_SERIALIZATION(int64_t)
 
 template <typename Writer>
-inline void json_encode(Writer &out, TName t)
+inline void json_encode(Writer &out, dsn::ranger::access_type t)
 {
     out.Uint64(static_cast<uint64_t>(t));
 }
 
-inline bool json_decode(const JsonObject &in, TName &t)
+inline bool json_decode(const JsonObject &in, dsn::ranger::access_type &t)
 {
     dverify(in.IsUint64());
     int64_t ans = in.GetUint64();
-    int64_t act_min = static_cast<uint64_t>(TName::KInvalid);
-    int64_t act_max =
-        static_cast<uint64_t>(TName::KRead | TName::KWrite | TName::KCreate | TName::KDrop |
-                              TName::KList | TName::KMetadata | TName::KControl);
+    int64_t act_min = static_cast<uint64_t>(dsn::ranger::access_type::KInvalid);
+    int64_t act_max = static_cast<uint64_t>(
+        dsn::ranger::access_type::KRead | dsn::ranger::access_type::KWrite |
+        dsn::ranger::access_type::KCreate | dsn::ranger::access_type::KDrop |
+        dsn::ranger::access_type::KList | dsn::ranger::access_type::KMetadata |
+        dsn::ranger::access_type::KControl);
     dverify(ans >= act_min && ans <= act_max);
-    using act = std::underlying_type<TName>::type;
-    t = (TName) static_cast<act>(ans);
+    using act = std::underlying_type<dsn::ranger::access_type>::type;
+    t = (dsn::ranger::access_type) static_cast<act>(ans);
     return true;
 }
 
