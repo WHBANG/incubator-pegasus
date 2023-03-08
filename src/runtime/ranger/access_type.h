@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// ACL type defined in Range service for RPC matching policy
+#pragma once
+
+#include <cstdint>
 
 namespace dsn {
 namespace ranger {
 
+// ACL type defined in Range service for RPC matching policy
 enum class access_type : uint8_t
 {
     KInvalid = 0,
