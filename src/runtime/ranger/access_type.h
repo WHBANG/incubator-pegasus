@@ -36,16 +36,17 @@ enum class access_type : uint8_t
 };
 
 using act = std::underlying_type<access_type>::type;
-static access_type access_type_min = access_type::kInvalid;
-static access_type access_type_max =
-    access_type::kRead | access_type::kWrite | access_type::kCreate | access_type::kDrop |
-    access_type::kList | access_type::kMetadata | access_type::kControl;
 
 access_type operator|(access_type lhs, access_type rhs);
 
 access_type operator&(access_type lhs, access_type rhs);
 
 access_type &operator|=(access_type &lhs, access_type rhs);
+
+access_type access_type_min = access_type::kInvalid;
+access_type access_type_max = access_type::kRead | access_type::kWrite | access_type::kCreate |
+                              access_type::kDrop | access_type::kList | access_type::kMetadata |
+                              access_type::kControl;
 
 } // namespace ranger
 } // namespace dsn
