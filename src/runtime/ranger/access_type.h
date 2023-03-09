@@ -35,10 +35,11 @@ enum class access_type : uint8_t
     kControl = 1 << 6
 };
 
-using act = std::underlying_type<dsn::ranger::access_type>::type;
-static access_type access_type_min = kInvalid;
+using act = std::underlying_type<access_type>::type;
+static access_type access_type_min = access_type::kInvalid;
 static access_type access_type_max =
-    KRead | KWrite | KCreate | KDrop | KList | KMetadata | KControl;
+    access_type::kRead | access_type::kWrite | access_type::kCreate | access_type::kDrop |
+    access_type::kList | access_type::kMetadata | access_type::kControl;
 
 access_type operator|(access_type lhs, access_type rhs);
 
