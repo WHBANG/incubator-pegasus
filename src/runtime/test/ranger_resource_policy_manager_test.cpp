@@ -135,7 +135,7 @@ TEST(ranger_resource_policy_manager_test, ranger_resource_policy_serialized_test
     fake_ranger_resource_policy.table_names = {"database1_table", "database2_table"};
     fake_ranger_resource_policy.policies = fake_policy;
 
-    std::string resource_type_name = enum_to_string(resource_type::KDatabaseTable);
+    std::string resource_type_name = enum_to_string(resource_type::kDatabaseTable);
     all_resource_policies fake_all_resource_policies{
         {resource_type_name, {fake_ranger_resource_policy}}};
 
