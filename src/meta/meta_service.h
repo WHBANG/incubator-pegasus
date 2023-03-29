@@ -57,6 +57,7 @@
 #include "meta_server_failure_detector.h"
 #include "perf_counter/perf_counter_wrapper.h"
 #include "runtime/api_layer1.h"
+#include "runtime/rpc/network.h"
 #include "runtime/rpc/rpc_address.h"
 #include "runtime/rpc/rpc_message.h"
 #include "runtime/rpc/serialization.h"
@@ -65,6 +66,7 @@
 #include "runtime/task/task.h"
 #include "runtime/task/task_code.h"
 #include "runtime/task/task_tracker.h"
+#include "utils/autoref_ptr.h"
 #include "utils/enum_helper.h"
 #include "utils/error_code.h"
 #include "utils/fmt_logging.h"
@@ -73,12 +75,15 @@
 
 namespace dsn {
 class command_deregister;
+
+namespace ranger {
+class ranger_resource_policy_manager;
+} // namespace ranger
 namespace dist {
 class meta_state_service;
 } // namespace dist
 
 namespace replication {
-
 class backup_service;
 class bulk_load_service;
 class meta_duplication_service;
@@ -86,6 +91,7 @@ class meta_split_service;
 class partition_guardian;
 class server_load_balancer;
 class server_state;
+
 namespace mss {
 struct meta_storage;
 } // namespace mss
@@ -118,6 +124,14 @@ ENUM_REG(meta_op_status::RESTORE)
 ENUM_REG(meta_op_status::MANUAL_COMPACT)
 ENUM_END(meta_op_status)
 
+// The leader status of meta server
+enum class meta_leader_state : int
+{
+    kIsLeader,                     // the meta is leader
+    kNotLeaderAndCanForwardRpc,    // meta isn't leader, and rpc-msg can forward to others
+    kNotLeaderAndCannotForwardRpc, // meta isn't leader, and rpc-msg can't forward to others
+};
+
 class meta_service : public serverlet<meta_service>
 {
 public:
@@ -135,6 +149,7 @@ public:
     mss::meta_storage *get_meta_storage() const { return _meta_storage.get(); }
 
     server_state *get_server_state() { return _state.get(); }
+    security::access_controller *get_access_controller() { return _access_controller.get(); }
     server_load_balancer *get_balancer() { return _balancer.get(); }
     partition_guardian *get_partition_guardian() { return _partition_guardian.get(); }
     dist::block_service::block_service_manager &get_block_service_manager()
@@ -278,22 +293,34 @@ private:
     void on_get_max_replica_count(configuration_get_max_replica_count_rpc rpc);
     void on_set_max_replica_count(configuration_set_max_replica_count_rpc rpc);
 
-    // common routines
-    // ret:
-    //   1. the meta is leader
-    //   0. meta isn't leader, and rpc-msg can forward to others
-    //  -1. meta isn't leader, and rpc-msg can't forward to others
-    // if return -1 and `forward_address' != nullptr, then return leader by `forward_address'.
-    int check_leader(dsn::message_ex *req, dsn::rpc_address *forward_address);
+    // if return 'kNotLeaderAndCannotForwardRpc' and 'forward_address' != nullptr, then return
+    // leader by 'forward_address'.
+    meta_leader_state check_leader(dsn::message_ex *req, dsn::rpc_address *forward_address);
     template <typename TRpcHolder>
-    int check_leader(TRpcHolder rpc, /*out*/ rpc_address *forward_address);
+    meta_leader_state check_leader(TRpcHolder rpc, /*out*/ rpc_address *forward_address);
+
+    // app_name: when the Ranger ACL is enabled, some rpc requests need to verify the app_name
     // ret:
-    //    false: check failed
-    //    true:  check succeed
+    //    false: rpc request check failed because check leader failed or ACL authentication failed
+    //    true:  rpc request check and authentication succeed
     template <typename TRpcHolder>
-    bool check_status(TRpcHolder rpc, /*out*/ rpc_address *forward_address = nullptr);
+    bool check_status_and_authz(TRpcHolder rpc,
+                                /*out*/ rpc_address *forward_address = nullptr,
+                                const std::string &app_name = "");
+
+    // app_name: when the Ranger ACL is enabled, some rpc requests need to verify the app_name
+    // ret:
+    //    false: rpc request check failed because check leader failed or ACL authentication failed
+    //    true:  rpc request check and authentication succeed
     template <typename TRespType>
-    bool check_status_with_msg(message_ex *req, TRespType &response_struct);
+    bool check_status_and_authz_with_reply(message_ex *req,
+                                           TRespType &response_struct,
+                                           const std::string &app_name = "");
+    template <typename TReqType, typename TRespType>
+    bool check_status_and_authz_with_reply(message_ex *msg);
+
+    template <typename TRpcHolder>
+    bool check_leader_status(TRpcHolder rpc, rpc_address *forward_address = nullptr);
 
     error_code remote_storage_initialize();
     bool check_freeze() const;
@@ -315,6 +342,7 @@ private:
     friend class policy_context_test;
     friend class server_state_restore_test;
     friend class test::test_checker;
+    friend class fake_receiver_meta_service;
 
     replication_options _opts;
     meta_options _meta_opts;
@@ -361,50 +389,47 @@ private:
 
     dsn::task_tracker _tracker;
 
-    std::unique_ptr<security::access_controller> _access_controller;
+    std::shared_ptr<security::access_controller> _access_controller;
+
+    // Use Apache Ranger for access control, which is nullptr when not use
+    std::shared_ptr<ranger::ranger_resource_policy_manager> _ranger_resource_policy_manager;
 
     // indicate which operation is processeding in meta server
     std::atomic<meta_op_status> _meta_op_status;
 };
 
 template <typename TRpcHolder>
-int meta_service::check_leader(TRpcHolder rpc, rpc_address *forward_address)
+meta_leader_state meta_service::check_leader(TRpcHolder rpc, rpc_address *forward_address)
 {
     dsn::rpc_address leader;
     if (!_failure_detector->get_leader(&leader)) {
         if (!rpc.dsn_request()->header->context.u.is_forward_supported) {
             if (forward_address != nullptr)
                 *forward_address = leader;
-            return -1;
+            return meta_leader_state::kNotLeaderAndCannotForwardRpc;
         }
 
         LOG_DEBUG("leader address: {}", leader);
         if (!leader.is_invalid()) {
             rpc.forward(leader);
-            return 0;
+            return meta_leader_state::kNotLeaderAndCanForwardRpc;
         } else {
             if (forward_address != nullptr)
                 forward_address->set_invalid();
-            return -1;
+            return meta_leader_state::kNotLeaderAndCannotForwardRpc;
         }
     }
-    return 1;
+    return meta_leader_state::kIsLeader;
 }
 
 template <typename TRpcHolder>
-bool meta_service::check_status(TRpcHolder rpc, rpc_address *forward_address)
+bool meta_service::check_leader_status(TRpcHolder rpc, rpc_address *forward_address)
 {
-    if (!_access_controller->allowed(rpc.dsn_request())) {
-        rpc.response().err = ERR_ACL_DENY;
-        LOG_INFO("reject request with ERR_ACL_DENY");
+    auto result = check_leader(rpc, forward_address);
+    if (result == meta_leader_state::kNotLeaderAndCanForwardRpc)
         return false;
-    }
-
-    int result = check_leader(rpc, forward_address);
-    if (result == 0)
-        return false;
-    if (result == -1 || !_started) {
-        if (result == -1) {
+    if (result == meta_leader_state::kNotLeaderAndCannotForwardRpc || !_started) {
+        if (result == meta_leader_state::kNotLeaderAndCannotForwardRpc) {
             rpc.response().err = ERR_FORWARD_TO_OTHERS;
         } else if (_recovering) {
             rpc.response().err = ERR_UNDER_RECOVERY;
@@ -414,38 +439,72 @@ bool meta_service::check_status(TRpcHolder rpc, rpc_address *forward_address)
         LOG_INFO("reject request with {}", rpc.response().err);
         return false;
     }
+    return true;
+}
 
+// when the Ranger ACL is enabled, only the leader meta_server will pull Ranger policy, so if it is
+// not the leader, _access_controller may be a null pointer, or a new leader is elected, and the
+// above policy information may be out of date.
+template <typename TRpcHolder>
+bool meta_service::check_status_and_authz(TRpcHolder rpc,
+                                          rpc_address *forward_address,
+                                          const std::string &app_name)
+{
+    if (!check_leader_status(rpc, forward_address)) {
+        return false;
+    }
+    if (!_access_controller->allowed(rpc.dsn_request(), app_name)) {
+        rpc.response().err = ERR_ACL_DENY;
+        LOG_DEBUG("not authorized {} to operate on app({}) for user({})",
+                  rpc.dsn_request()->rpc_code(),
+                  app_name,
+                  rpc.dsn_request()->io_session->get_client_username());
+        return false;
+    }
     return true;
 }
 
 template <typename TRespType>
-bool meta_service::check_status_with_msg(message_ex *req, TRespType &response_struct)
+bool meta_service::check_status_and_authz_with_reply(message_ex *req,
+                                                     TRespType &response_struct,
+                                                     const std::string &app_name)
 {
-    if (!_access_controller->allowed(req)) {
-        LOG_INFO("reject request with ERR_ACL_DENY");
-        response_struct.err = ERR_ACL_DENY;
-        reply(req, response_struct);
+    auto result = check_leader(req, nullptr);
+    if (result == meta_leader_state::kNotLeaderAndCanForwardRpc) {
         return false;
     }
-
-    int result = check_leader(req, nullptr);
-    if (result == 0) {
-        return false;
-    }
-    if (result == -1 || !_started) {
-        if (result == -1) {
+    if (result == meta_leader_state::kNotLeaderAndCannotForwardRpc || !_started) {
+        if (result == meta_leader_state::kNotLeaderAndCannotForwardRpc) {
             response_struct.err = ERR_FORWARD_TO_OTHERS;
         } else if (_recovering) {
             response_struct.err = ERR_UNDER_RECOVERY;
         } else {
             response_struct.err = ERR_SERVICE_NOT_ACTIVE;
         }
-        LOG_INFO("reject request with {}", response_struct.err);
+        LOG_DEBUG("reject request with {}", response_struct.err);
         reply(req, response_struct);
         return false;
     }
-
+    if (!_access_controller->allowed(req, app_name)) {
+        response_struct.err = ERR_ACL_DENY;
+        LOG_DEBUG("not authorized {} to operate on app({}) for user({})",
+                  req->rpc_code(),
+                  app_name,
+                  req->io_session->get_client_username());
+        reply(req, response_struct);
+        return false;
+    }
     return true;
+}
+
+template <typename TReqType, typename TRespType>
+bool meta_service::check_status_and_authz_with_reply(message_ex *msg)
+{
+    TReqType req;
+    TRespType resp;
+    dsn::message_ex *copied_msg = message_ex::copy_message_no_reply(*msg);
+    dsn::unmarshall(copied_msg, req);
+    return check_status_and_authz_with_reply(msg, resp, req.app_name);
 }
 
 } // namespace replication
