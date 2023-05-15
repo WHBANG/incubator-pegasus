@@ -22,7 +22,6 @@ package org.apache.pegasus.client;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertThat;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.lang3.reflect.FieldUtils;
