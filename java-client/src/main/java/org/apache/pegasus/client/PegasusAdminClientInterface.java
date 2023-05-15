@@ -82,7 +82,7 @@ public interface PegasusAdminClientInterface extends Closeable {
    * @param appInfoList List of all 'app_info' in the pegasus cluster
    * @throws PException
    */
-  public void listApps(ListAppInfoType listAppInfoType, List<app_info> appInfoList)
+  public List<app_info> listApps(ListAppInfoType listAppInfoType)
       throws PException;
 
   /** close the client */
