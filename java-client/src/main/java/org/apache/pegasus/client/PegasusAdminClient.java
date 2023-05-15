@@ -244,7 +244,7 @@ public class PegasusAdminClient extends PegasusAbstractClient
 
     configuration_list_apps_request request = new configuration_list_apps_request();
     request.setStatus(app_status.AS_AVAILABLE);
-    if (listAppInfoType = ListAppInfoType.GETALLAPPINFOS) {
+    if (listAppInfoType == ListAppInfoType.LT_GET_ALL_APPS) {
       request.setStatus(app_status.AS_INVALID);
     }
 

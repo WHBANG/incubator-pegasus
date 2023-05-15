@@ -24,11 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.pegasus.replication.app_info;
 
-public enum ListAppInfoType {
-  GETALLAPPINFOS,
-  ONLYGETAVAILABLEAPPS;
-}
-
 public interface PegasusAdminClientInterface extends Closeable {
   /**
    * Create A new pegasus app which is not stateless However the successful execution of the
