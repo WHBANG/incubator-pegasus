@@ -251,6 +251,7 @@ public class PegasusAdminClient extends PegasusAbstractClient
               request.getStatus(), error.toString()));
     }
 
+    configuration_list_apps_response response = app_operator.get_response();
     return response.infos;
   }
 }
