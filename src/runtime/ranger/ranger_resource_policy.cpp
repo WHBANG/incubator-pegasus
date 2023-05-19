@@ -33,12 +33,12 @@ policy_check_status acl_policies::policy_check(const access_type &ac_type,
 {
     std::vector<policy_item> *policies = nullptr;
     std::vector<policy_item> *policies_exclude = nullptr;
-    if (check_type == policy_check_type.kAllow) {
-        policies = allow_policy;
-        policies_exclude = allow_policies_exclude;
-    } else if (check_type == policy_check_type.kDeny) {
-        policies = deny_policy;
-        policies_exclude = deny_policies_exclude;
+    if (check_type == policy_check_type::kAllow) {
+        policies = &allow_policy;
+        policies_exclude = &allow_policies_exclude;
+    } else if (check_type == policy_check_type::kDeny) {
+        policies = &deny_policy;
+        policies_exclude = &deny_policies_exclude;
     } else {
         CHECK(false, "Unsupported policy check type: {}", check_type);
     }
@@ -50,7 +50,7 @@ policy_check_status acl_policies::policy_check(const access_type &ac_type,
         // 1.2. A policies has been matched.
         bool in_policies_exclude = false;
         // 1.3. In 'allow_policies_exclude/deny_policies_exclude'.
-        for (const auto &policy_exclude : policies_exclude) {
+        for (const auto &policy_exclude : *policies_exclude) {
             if (policy_exclude.match(ac_type, user_name)) {
                 in_policies_exclude = true;
                 break;
@@ -58,18 +58,18 @@ policy_check_status acl_policies::policy_check(const access_type &ac_type,
         }
         if (in_policies_exclude) {
             // 1.5. In any 'policies_exclude'.
-            return policy_check_status.kPending;
+            return policy_check_status::kPending;
         } else {
             // 1.6. Not in any 'policies_exclude'.
-            if (check_type == policy_check_type.kAllow) {
-                return policy_check_status.kAllowed;
+            if (check_type == policy_check_type::kAllow) {
+                return policy_check_status::kAllowed;
             } else {
-                return policy_check_status.kDenied;
+                return policy_check_status::kDenied;
             }
         }
     }
     // 1.7. not match any policy.
-    return policy_check_status.kNotMatched;
+    return policy_check_status::kNotMatched;
 }
 
 } // namespace ranger
