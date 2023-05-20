@@ -126,7 +126,7 @@ bool check_ranger_resource_policy_allowed(const std::vector<T> &policies,
             }
         }
         auto check_status =
-            policy.policies.policy_check(ac_type, user_name, policy_check_type::kDeny);
+            policy.policies.policies_check(ac_type, user_name, policy_check_type::kDeny);
         // In a 'deny_policies' and not in any 'deny_policies_exclude'.
         if (policy_check_status::kDenied == check_status) {
             return false;
@@ -154,7 +154,7 @@ bool check_ranger_resource_policy_allowed(const std::vector<T> &policies,
             }
         }
         auto check_status =
-            policy.policies.policy_check(ac_type, user_name, policy_check_type::kAllow);
+            policy.policies.policies_check(ac_type, user_name, policy_check_type::kAllow);
         // In a 'allow_policies' and not in any 'allow_policies_exclude'.
         if (policy_check_status::kAllowed == check_status) {
             return true;
