@@ -228,37 +228,8 @@ bool ranger_resource_policy_manager::allowed(const int rpc_code,
 
         // Check if it is denied by any GLOBAL policy.
         utils::auto_read_lock l(_global_policies_lock);
-        for (const auto &policy : _global_policies_cache) {
-            auto check_status =
-                policy.policies.policy_check(ac_type->second, user_name, policy_check_type::kDeny);
-            // In a 'deny_policies' and not in any 'deny_policies_exclude'.
-            if (policy_check_status::kDenied == check_status) {
-                return false;
-            }
-            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
-            if (policy_check_status::kPending == check_status ||
-                policy_check_status::kNotMatched == check_status) {
-                continue;
-            }
-        }
-
-        // Check if it is allowed by any GLOBAL policy.
-        for (const auto &policy : _global_policies_cache) {
-            auto check_status =
-                policy.policies.policy_check(ac_type->second, user_name, policy_check_type::kAllow);
-            // In a 'allow_policies' and not in any 'allow_policies_exclude'.
-            if (policy_check_status::kAllowed == check_status) {
-                return true;
-            }
-            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
-            if (policy_check_status::kPending == check_status ||
-                policy_check_status::kNotMatched == check_status) {
-                continue;
-            }
-        }
-
-        // The check that does not match any GLOBAL policy returns false.
-        return false;
+        return check_ranger_resource_policy_allowed(
+            _global_policies_cache, ac_type->second, user_name, false, "", "");
     } while (false);
 
     do {
@@ -268,61 +239,17 @@ bool ranger_resource_policy_manager::allowed(const int rpc_code,
             break;
         }
 
-        // Check if it is denied by any DATABASE policy.
         utils::auto_read_lock l(_database_policies_lock);
-        for (const auto &policy : _database_policies_cache) {
-            // Lagacy table not match any database.
-            if (database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(
-                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
-                continue;
-            }
-            // New table not match any database.
-            if (!database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(database_name) == 0) {
-                continue;
-            }
-            auto check_status = policy.policies.policies_check(
-                ac_type->second, user_name, policy_check_type::kDeny);
-            // In a 'deny_policies' and not in any 'deny_policies_exclude'.
-            if (policy_check_status::kDenied == check_status) {
-                return false;
-            }
-            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
-            if (policy_check_status::kPending == check_status ||
-                policy_check_status::kNotMatched == check_status) {
-                continue;
-            }
-        }
-
-        // Check if it is allowed by any DATABASE policy.
-        for (const auto &policy : _database_policies_cache) {
-            // Lagacy table not match any database.
-            if (database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(
-                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
-                continue;
-            }
-            // New table not match any database.
-            if (!database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(database_name) == 0) {
-                continue;
-            }
-            auto check_status =
-                policy.policies.policy_check(ac_type->second, user_name, policy_check_type::kAllow);
-            // In a 'allow_policies' and not in any 'allow_policies_exclude'.
-            if (policy_check_status::kAllowed == check_status) {
-                return true;
-            }
-            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
-            if (policy_check_status::kPending == check_status ||
-                policy_check_status::kNotMatched == check_status) {
-                continue;
-            }
-        }
+        return check_ranger_resource_policy_allowed(
+            _database_policies_cache,
+            ac_type->second,
+            user_name,
+            true,
+            database_name,
+            FLAGS_ranger_legacy_table_database_mapping_policy_name);
     } while (false);
 
-    // The check that does not match any policy returns false.
+    // The check that does not match any resource returns false.
     return false;
 }
 
@@ -653,21 +580,23 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
         req->__set_app_name(app.app_name);
         req->__set_keys(
             {dsn::replication::replica_envs::REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES});
-        std::vector<acl_policies> match_acl_policies;
+        std::vector<matched_database_table_policy> matched_database_table_policies;
         for (const auto &policy : table_policies->second) {
             if (policy.database_names.count(database_name) == 0 &&
                 policy.database_names.count("*") == 0) {
                 continue;
             }
-
+            matched_database_table_policy _matched_database_table_policy(
+                {database_name, table_name, policy});
             // if table name does not conform to the naming rules(database_name.table_name),
             // database is defined by "*" in ranger for acl matching
-            if (policy.table_names.count("*") != 0 || policy.table_names.count(table_name) != 0) {
-                match_acl_policies.emplace_back(policy.policies);
+            if (policy.table_names.count("*") != 0) {
+                _matched_database_table_policy.matched_database_name = "*";
             }
+            matched_database_table_policies.emplace_back({_matched_database_table_policy});
         }
 
-        if (match_acl_policies.empty()) {
+        if (matched_database_table_policies.empty()) {
             // There is no matched policy, clear app Ranger policy
             req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_DEL);
 
@@ -677,7 +606,8 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
         } else {
             req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_SET);
             req->__set_values(
-                {json::json_forwarder<acl_policies>::encode(match_acl_policies).to_string()});
+                {json::json_forwarder<acl_policies>::encode(matched_database_table_policies)
+                     .to_string()});
 
             dsn::replication::update_app_env_rpc rpc(std::move(req), LPC_USE_RANGER_ACCESS_CONTROL);
             _meta_svc->get_server_state()->set_app_envs(rpc);

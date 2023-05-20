@@ -93,5 +93,82 @@ struct ranger_resource_policy
     DEFINE_JSON_SERIALIZATION(name, database_names, table_names, policies)
 };
 
+struct matched_database_table_policy
+{
+    std::string matched_database_name;
+    std::string matched_table_name;
+    acl_policies policies;
+
+    DEFINE_JSON_SERIALIZATION(matched_database_name, matched_table_name, policies);
+};
+
+template <typename T>
+bool check_ranger_resource_policy_allowed(const std::vector<T> &policies,
+                                          const access_type &ac_type,
+                                          const std::string &user_name,
+                                          bool is_need_match_database,
+                                          const std::string &database_name,
+                                          const std::string &default_database_name)
+{
+    // Check if it is denied by any policy in current resource.
+    for (const auto &policy : policies) {
+        if (is_need_match_database) {
+            // Lagacy table not match any database.
+            if (database_name.empty() && policy.database_names.count("*") == 0 &&
+                policy.database_names.count(
+                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
+                continue;
+            }
+            // New table not match any database.
+            if (!database_name.empty() && policy.database_names.count("*") == 0 &&
+                policy.database_names.count(database_name) == 0) {
+                continue;
+            }
+        }
+        auto check_status =
+            policy.policies.policy_check(ac_type, user_name, policy_check_type::kDeny);
+        // In a 'deny_policies' and not in any 'deny_policies_exclude'.
+        if (policy_check_status::kDenied == check_status) {
+            return false;
+        }
+        // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
+        if (policy_check_status::kPending == check_status ||
+            policy_check_status::kNotMatched == check_status) {
+            continue;
+        }
+    }
+
+    // Check if it is allowed by any policy in current resource.
+    for (const auto &policy : policies) {
+        if (is_need_match_database) {
+            // Lagacy table not match any database.
+            if (database_name.empty() && policy.database_names.count("*") == 0 &&
+                policy.database_names.count(
+                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
+                continue;
+            }
+            // New table not match any database.
+            if (!database_name.empty() && policy.database_names.count("*") == 0 &&
+                policy.database_names.count(database_name) == 0) {
+                continue;
+            }
+        }
+        auto check_status =
+            policy.policies.policy_check(ac_type, user_name, policy_check_type::kAllow);
+        // In a 'allow_policies' and not in any 'allow_policies_exclude'.
+        if (policy_check_status::kAllowed == check_status) {
+            return true;
+        }
+        // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
+        if (policy_check_status::kPending == check_status ||
+            policy_check_status::kNotMatched == check_status) {
+            continue;
+        }
+    }
+
+    // The check that does not match any policy in current reosource returns false.
+    return false;
+}
+
 } // namespace ranger
 } // namespace dsn
