@@ -74,12 +74,13 @@ struct acl_policies
     // type "ac_type".
     policy_check_status policies_check(const access_type &ac_type,
                                        const std::string &user_name,
-                                       policy_check_type check_type) const;
+                                       const policy_check_type &check_type) const;
 
-    policy_check_status do_policies_check(const access_type &ac_type,
+    policy_check_status do_policies_check(const policy_check_type &check_type,
+                                          const access_type &ac_type,
                                           const std::string &user_name,
                                           const std::vector<policy_item> &policies,
-                                          const std::vector<policy_item> &policies_exclude) const
+                                          const std::vector<policy_item> &policies_exclude) const;
 };
 
 // A policy data structure definition of ranger resources
@@ -115,8 +116,7 @@ bool check_ranger_resource_policy_allowed(const std::vector<T> &policies,
         if (is_need_match_database) {
             // Lagacy table not match any database.
             if (database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(
-                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
+                policy.database_names.count(default_database_name) == 0) {
                 continue;
             }
             // New table not match any database.
@@ -143,8 +143,7 @@ bool check_ranger_resource_policy_allowed(const std::vector<T> &policies,
         if (is_need_match_database) {
             // Lagacy table not match any database.
             if (database_name.empty() && policy.database_names.count("*") == 0 &&
-                policy.database_names.count(
-                    FLAGS_ranger_legacy_table_database_mapping_policy_name) == 0) {
+                policy.database_names.count(default_database_name) == 0) {
                 continue;
             }
             // New table not match any database.

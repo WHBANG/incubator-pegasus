@@ -29,19 +29,22 @@ bool policy_item::match(const access_type &ac_type, const std::string &user_name
 
 policy_check_status acl_policies::policies_check(const access_type &ac_type,
                                                  const std::string &user_name,
-                                                 policy_check_type check_type) const
+                                                 const policy_check_type &check_type) const
 {
     if (check_type == policy_check_type::kAllow) {
-        return do_policies_check(ac_type, user_name, allow_policies, allow_policies_exclude);
+        return do_policies_check(
+            check_type, ac_type, user_name, allow_policies, allow_policies_exclude);
     }
     if (check_type == policy_check_type::kDeny) {
-        return do_policies_check(ac_type, user_name, deny_policies, deny_policies_exclude);
+        return do_policies_check(
+            check_type, ac_type, user_name, deny_policies, deny_policies_exclude);
     }
     CHECK(false, "Unsupported policy check type: {}", check_type);
 }
 
 policy_check_status
-acl_policies::do_policies_check(const access_type &ac_type,
+acl_policies::do_policies_check(const policy_check_type &check_type,
+                                const access_type &ac_type,
                                 const std::string &user_name,
                                 const std::vector<policy_item> &policies,
                                 const std::vector<policy_item> &policies_exclude) const
