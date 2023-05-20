@@ -90,7 +90,7 @@ struct ranger_resource_policy
     std::unordered_set<std::string> table_names;
     acl_policies policies;
 
-    DEFINE_JSON_SERIALIZATION(name, database_names, table_names, policies)
+    DEFINE_JSON_SERIALIZATION(name, database_names, table_names, policies);
 };
 
 struct matched_database_table_policy
