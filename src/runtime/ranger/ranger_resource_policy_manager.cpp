@@ -282,8 +282,8 @@ bool ranger_resource_policy_manager::allowed(const int rpc_code,
                 policy.database_names.count(database_name) == 0) {
                 continue;
             }
-            auto check_status =
-                policy.policies.allowed(ac_type->second, user_name, policy_check_type::kDeny);
+            auto check_status = policy.policies.policies_check(
+                ac_type->second, user_name, policy_check_type::kDeny);
             // In a 'deny_policies' and not in any 'deny_policies_exclude'.
             if (policy_check_status::kDenied == check_status) {
                 return false;
@@ -645,7 +645,7 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
         std::string database_name = get_database_name_from_app_name(app.app_name);
         // Use "*" for table name of invalid Ranger rules to match datdabase resources.
         if (database_name.empty()) {
-            database_name = "*";
+            database_name = FLAGS_ranger_legacy_table_database_mapping_policy_name;
         }
         std::string table_name = get_table_name_from_app_name(app.app_name);
 
@@ -653,35 +653,36 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
         req->__set_app_name(app.app_name);
         req->__set_keys(
             {dsn::replication::replica_envs::REPLICA_ACCESS_CONTROLLER_RANGER_POLICIES});
-        bool is_policy_matched = false;
+        std::vector<acl_policies> match_acl_policies;
         for (const auto &policy : table_policies->second) {
-            if (policy.database_names.count(database_name) == 0) {
+            if (policy.database_names.count(database_name) == 0 &&
+                policy.database_names.count("*") == 0) {
                 continue;
             }
 
             // if table name does not conform to the naming rules(database_name.table_name),
             // database is defined by "*" in ranger for acl matching
             if (policy.table_names.count("*") != 0 || policy.table_names.count(table_name) != 0) {
-                is_policy_matched = true;
-                req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_SET);
-                req->__set_values(
-                    {json::json_forwarder<acl_policies>::encode(policy.policies).to_string()});
-
-                dsn::replication::update_app_env_rpc rpc(std::move(req),
-                                                         LPC_USE_RANGER_ACCESS_CONTROL);
-                _meta_svc->get_server_state()->set_app_envs(rpc);
-                LOG_AND_RETURN_NOT_OK(ERROR, rpc.response().err, "set_app_envs failed.");
-                break;
+                match_acl_policies.emplace_back(policy.policies);
             }
         }
 
-        // There is no matched policy, clear app Ranger policy
-        if (!is_policy_matched) {
+        if (match_acl_policies.empty()) {
+            // There is no matched policy, clear app Ranger policy
             req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_DEL);
 
             dsn::replication::update_app_env_rpc rpc(std::move(req), LPC_USE_RANGER_ACCESS_CONTROL);
             _meta_svc->get_server_state()->del_app_envs(rpc);
             LOG_AND_RETURN_NOT_OK(ERROR, rpc.response().err, "del_app_envs failed.");
+        } else {
+            req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_SET);
+            req->__set_values(
+                {json::json_forwarder<acl_policies>::encode(match_acl_policies).to_string()});
+
+            dsn::replication::update_app_env_rpc rpc(std::move(req), LPC_USE_RANGER_ACCESS_CONTROL);
+            _meta_svc->get_server_state()->set_app_envs(rpc);
+            LOG_AND_RETURN_NOT_OK(ERROR, rpc.response().err, "set_app_envs failed.");
+            break;
         }
     }
 

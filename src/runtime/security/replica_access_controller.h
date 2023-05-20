@@ -64,7 +64,7 @@ private:
     std::string _env_policies;
 
     // The Ranger policies for ACL.
-    ranger::acl_policies _ranger_policies;
+    std::vector<ranger::acl_policies> _ranger_policies;
 
     std::string _name;
 

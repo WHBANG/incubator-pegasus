@@ -69,7 +69,37 @@ bool replica_access_controller::allowed(message_ex *msg, ranger::access_type req
     // use Ranger policy for ACL.
     {
         utils::auto_read_lock l(_lock);
-        return _ranger_policies.allowed(req_type, user_name);
+        // return _ranger_policies.policies_check(req_type, user_name);
+        // Check if it is denied by any DATABASE_TABLE policy.
+        for (const auto &policy : _ranger_policies) {
+            auto check_status = policy.policy_check(req_type, user_name, policy_check_type::kDeny);
+            // In a 'deny_policies' and not in any 'deny_policies_exclude'.
+            if (policy_check_status::kDenied == check_status) {
+                return false;
+            }
+            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
+            if (policy_check_status::kPending == check_status ||
+                policy_check_status::kNotMatched == check_status) {
+                continue;
+            }
+        }
+
+        // Check if it is allowed by any DATABASE_TABLE policy.
+        for (const auto &policy : _ranger_policies) {
+            auto check_status = policy.policy_check(req_type, user_name, policy_check_type::kAllow);
+            // In a 'allow_policies' and not in any 'allow_policies_exclude'.
+            if (policy_check_status::kAllowed == check_status) {
+                return true;
+            }
+            // In a 'deny_policies' and in a 'deny_policies_exclude' or not match.
+            if (policy_check_status::kPending == check_status ||
+                policy_check_status::kNotMatched == check_status) {
+                continue;
+            }
+        }
+
+        // The check that does not match any DATABASE_TABLE policy returns false.
+        return false;
     }
 }
 
@@ -102,7 +132,7 @@ void replica_access_controller::update_ranger_policies(const std::string &polici
             return;
         }
     }
-    ranger::acl_policies tmp_policies;
+    std::vector<ranger::acl_policies> tmp_policies;
     auto tmp_policies_str = policies;
     dsn::json::json_forwarder<ranger::acl_policies>::decode(
         dsn::blob::create_from_bytes(std::move(tmp_policies_str)), tmp_policies);

@@ -72,9 +72,14 @@ struct acl_policies
 
     // Check if 'allow_policies' or 'deny_policies' allow or deny "user_name" access to resource by
     // type "ac_type".
-    policy_check_status policy_check(const access_type &ac_type,
-                                     const std::string &user_name,
-                                     policy_check_type check_type) const;
+    policy_check_status policies_check(const access_type &ac_type,
+                                       const std::string &user_name,
+                                       policy_check_type check_type) const;
+
+    policy_check_status do_policies_check(const access_type &ac_type,
+                                          const std::string &user_name,
+                                          const std::vector<policy_item> &policies,
+                                          const std::vector<policy_item> &policies_exclude) const
 };
 
 // A policy data structure definition of ranger resources

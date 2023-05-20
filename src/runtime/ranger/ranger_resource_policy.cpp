@@ -27,22 +27,26 @@ bool policy_item::match(const access_type &ac_type, const std::string &user_name
     return static_cast<bool>(access_types & ac_type) && users.count(user_name) != 0;
 }
 
-policy_check_status acl_policies::policy_check(const access_type &ac_type,
-                                               const std::string &user_name,
-                                               policy_check_type check_type) const
+policy_check_status acl_policies::policies_check(const access_type &ac_type,
+                                                 const std::string &user_name,
+                                                 policy_check_type check_type) const
 {
-    std::vector<policy_item> *policies = nullptr;
-    std::vector<policy_item> *policies_exclude = nullptr;
     if (check_type == policy_check_type::kAllow) {
-        policies = &allow_policy;
-        policies_exclude = &allow_policies_exclude;
-    } else if (check_type == policy_check_type::kDeny) {
-        policies = &deny_policy;
-        policies_exclude = &deny_policies_exclude;
-    } else {
-        CHECK(false, "Unsupported policy check type: {}", check_type);
+        return do_policies_check(ac_type, user_name, allow_policies, allow_policies_exclude);
     }
-    for (const auto &policy : *policies) {
+    if (check_type == policy_check_type::kDeny) {
+        return do_policies_check(ac_type, user_name, deny_policies, deny_policies_exclude);
+    }
+    CHECK(false, "Unsupported policy check type: {}", check_type);
+}
+
+policy_check_status
+acl_policies::do_policies_check(const access_type &ac_type,
+                                const std::string &user_name,
+                                const std::vector<policy_item> &policies,
+                                const std::vector<policy_item> &policies_exclude) const
+{
+    for (const auto &policy : policies) {
         // 1.1. Not match a 'allow_policies/deny_policies'.
         if (!policy.match(ac_type, user_name)) {
             continue;
@@ -50,7 +54,7 @@ policy_check_status acl_policies::policy_check(const access_type &ac_type,
         // 1.2. A policies has been matched.
         bool in_policies_exclude = false;
         // 1.3. In 'allow_policies_exclude/deny_policies_exclude'.
-        for (const auto &policy_exclude : *policies_exclude) {
+        for (const auto &policy_exclude : policies_exclude) {
             if (policy_exclude.match(ac_type, user_name)) {
                 in_policies_exclude = true;
                 break;
