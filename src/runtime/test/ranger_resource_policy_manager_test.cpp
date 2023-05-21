@@ -326,9 +326,9 @@ TEST(ranger_resource_policy_manager_test, ranger_resource_policy_serialized_test
             test.ac_type, test.user_name, test.check_type);
         EXPECT_EQ(test.expected_result, actual_result)
             << fmt::format("ac_type: {}, user_name: {}, check_type: {}",
-                           test.ac_type,
+                           enum_to_string(test.ac_type),
                            test.user_name,
-                           test.check_type);
+                           enum_to_string(test.check_type));
         ;
     }
 }
