@@ -606,7 +606,8 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
         } else {
             req->__set_op(dsn::replication::app_env_operation::type::APP_ENV_OP_SET);
             req->__set_values(
-                {json::json_forwarder<acl_policies>::encode(matched_database_table_policies)
+                {json::json_forwarder<std::vector<matched_database_table_policy>>::encode(
+                     matched_database_table_policies)
                      .to_string()});
 
             dsn::replication::update_app_env_rpc rpc(std::move(req), LPC_USE_RANGER_ACCESS_CONTROL);

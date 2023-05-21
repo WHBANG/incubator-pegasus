@@ -103,9 +103,9 @@ void replica_access_controller::update_ranger_policies(const std::string &polici
             return;
         }
     }
-    std::vector<ranger::acl_policies> tmp_policies;
+    matched_database_table_policies tmp_policies;
     auto tmp_policies_str = policies;
-    dsn::json::json_forwarder<ranger::acl_policies>::decode(
+    dsn::json::json_forwarder<matched_database_table_policies>::decode(
         dsn::blob::create_from_bytes(std::move(tmp_policies_str)), tmp_policies);
     {
         utils::auto_write_lock l(_lock);
