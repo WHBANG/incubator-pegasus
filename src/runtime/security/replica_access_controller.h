@@ -30,7 +30,7 @@ class message_ex;
 
 namespace security {
 
-using matched_database_table_policies = std::vector<matched_database_table_policy>;
+using matched_database_table_policies = std::vector<ranger::matched_database_table_policy>;
 
 class replica_access_controller : public access_controller
 {
