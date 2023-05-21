@@ -27,19 +27,31 @@
 namespace dsn {
 namespace ranger {
 
-enum class policy_check_status : int8_t
+enum class policy_check_status
 {
     kAllowed = 0,
     kDenied,
     kNotMatched,
-    kPending
+    kPending,
+    kInvalid
 };
+ENUM_BEGIN(policy_check_status, policy_check_status::kInvalid)
+ENUM_REG(policy_check_status::kAllowed)
+ENUM_REG(policy_check_status::kDenied)
+ENUM_REG(policy_check_status::kNotMatched)
+ENUM_REG(policy_check_status::kPending)
+ENUM_END(policy_check_status)
 
-enum class policy_check_type : int8_t
+enum class policy_check_type
 {
     kAllow = 0,
-    kDeny
+    kDeny,
+    kInvalid
 };
+ENUM_BEGIN(policy_check_type, policy_check_type::kInvalid)
+ENUM_REG(policy_check_type::kAllow)
+ENUM_REG(policy_check_type::kDeny)
+ENUM_END(policy_check_type)
 
 // Ranger policy data structure
 struct policy_item
