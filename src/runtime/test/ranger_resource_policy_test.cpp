@@ -134,7 +134,7 @@ TEST(ranger_resource_policy_test, acl_policies_allowed)
         // in a 'deny_policies' and not in any 'deny_policies_exclude'
         {access_type::kWrite, "user5", policy_check_type::kDeny, policy_check_status::kDenied},
         // in a 'allow_policies' and not in any 'allow_policies_exclude'
-        {access_type::kCreate, "user5", policy_check_type::kAllow, policy_check_status::kAllowed},
+        {access_type::kCreate, "user5", policy_check_type::kAllow, policy_check_status::kPending},
         // not in any "deny_policies"
         {access_type::kCreate, "user5", policy_check_type::kDeny, policy_check_status::kNotMatched},
         // not in any "allow_policies"

@@ -213,7 +213,7 @@ TEST(ranger_resource_policy_manager_test, ranger_resource_policy_serialized_test
          "user1",
          policy_check_type::kAllow,
          policy_check_status::kNotMatched},
-        {access_type::kRead, "user2", policy_check_type::kAllow, policy_check_status::kNotMatched},
+        {access_type::kRead, "user2", policy_check_type::kAllow, policy_check_status::kAllowed},
         {access_type::kWrite, "user2", policy_check_type::kAllow, policy_check_status::kPending},
         {access_type::kCreate,
          "user2",
@@ -452,8 +452,8 @@ TEST_F(ranger_resource_policy_manager_function_test, allowed)
                  {"RPC_CM_START_BACKUP_APP", "user3", "database2", true},
                  {"RPC_CM_START_BACKUP_APP", "user4", "database2", false},
                  {"TASK_CODE_INVALID", "user5", "", false},
-                 // Next two case matched to the default database policy.
-                 {"RPC_CM_CREATE_APP", "user5", "", false},
+                 // Next two case matched to the default database policy and "*" database.
+                 {"RPC_CM_CREATE_APP", "user5", "", true},
                  {"RPC_CM_CREATE_APP", "user6", "", true},
                  // Next two case matched to the database policy named "*".
                  {"RPC_CM_CREATE_APP", "user5", "any_database_name", true},
