@@ -161,7 +161,7 @@ TEST(ranger_resource_policy_test, acl_policies_allowed)
     for (const auto &test : tests) {
         auto actual_result = policy.policies_check(test.ac_type, test.user_name, test.check_type);
         EXPECT_EQ(test.expected_result, actual_result)
-            << fmt::format("ac_type: {}, user_name: {}", test.ac_type, test.user_name);
+            << fmt::format("user_name: {}", test.user_name);
     }
 }
 } // namespace ranger
