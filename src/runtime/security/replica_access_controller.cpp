@@ -69,8 +69,7 @@ bool replica_access_controller::allowed(message_ex *msg, ranger::access_type req
     // use Ranger policy for ACL.
     {
         utils::auto_read_lock l(_lock);
-        return check_ranger_resource_policy_allowed(
-            _ranger_policies, req_type, user_name, false, "", "");
+        return check_ranger_database_table_policy_allowed(_ranger_policies, req_type, user_name, );
     }
 }
 
