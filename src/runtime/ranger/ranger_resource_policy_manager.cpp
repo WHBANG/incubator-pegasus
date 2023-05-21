@@ -593,7 +593,7 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
             if (policy.table_names.count("*") != 0) {
                 _matched_database_table_policy.matched_database_name = "*";
             }
-            matched_database_table_policies.emplace_back({_matched_database_table_policy});
+            matched_database_table_policies.emplace_back(_matched_database_table_policy);
         }
 
         if (matched_database_table_policies.empty()) {
