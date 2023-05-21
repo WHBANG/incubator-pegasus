@@ -38,10 +38,7 @@ policy_check_status acl_policies::policies_check(const access_type &ac_type,
         return do_policies_check(
             check_type, ac_type, user_name, allow_policies, allow_policies_exclude);
     }
-    if (check_type == policy_check_type::kDeny) {
-        return do_policies_check(
-            check_type, ac_type, user_name, deny_policies, deny_policies_exclude);
-    }
+    return do_policies_check(check_type, ac_type, user_name, deny_policies, deny_policies_exclude);
 }
 
 policy_check_status
