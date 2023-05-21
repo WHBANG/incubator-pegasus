@@ -126,4 +126,10 @@ private:
 template <typename TEnum>
 std::unique_ptr<enum_helper_xxx<TEnum>> enum_helper_xxx<TEnum>::_instance;
 
+template <typename TEnum>
+typename std::underlying_type<TEnum>::type print_enum(TEnum const value)
+{
+    return static_cast<typename std::underlying_type<TEnum>::type>(value);
+}
+
 } // namespace dsn

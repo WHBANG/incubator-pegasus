@@ -318,12 +318,17 @@ TEST(ranger_resource_policy_manager_test, ranger_resource_policy_serialized_test
         auto actual_result =
             policy.policies.policies_check(test.ac_type, test.user_name, test.check_type);
         EXPECT_EQ(test.expected_result, actual_result)
-            << fmt::format("user_name: {}", test.user_name);
+            << fmt::format("ac_type: {}, user_name: {}, check_type: {}",
+                           print_enum(test.ac_type),
+                           test.user_name,
+                           print_enum(test.check_type));
         actual_result = policy_serialized.policies.policies_check(
             test.ac_type, test.user_name, test.check_type);
         EXPECT_EQ(test.expected_result, actual_result)
-            << fmt::format("user_name: {}", test.user_name);
-        ;
+            << fmt::format("ac_type: {}, user_name: {}, check_type: {}",
+                           print_enum(test.ac_type),
+                           test.user_name,
+                           print_enum(test.check_type));
     }
 }
 
