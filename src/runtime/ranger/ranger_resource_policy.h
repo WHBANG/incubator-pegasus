@@ -27,7 +27,7 @@
 namespace dsn {
 namespace ranger {
 
-enum class policy_check_status : char
+enum class policy_check_status : int8_t
 {
     kAllowed = 0,
     kDenied,
@@ -35,7 +35,7 @@ enum class policy_check_status : char
     kPending
 };
 
-enum class policy_check_type : char
+enum class policy_check_type : int8_t
 {
     kAllow = 0,
     kDeny
