@@ -31,9 +31,6 @@ policy_check_status acl_policies::policies_check(const access_type &ac_type,
                                                  const std::string &user_name,
                                                  const policy_check_type &check_type) const
 {
-    CHECK(check_type == policy_check_type::kAllow || check_type == policy_check_type::kDeny,
-          "Unsupported policy check type: {}",
-          check_type);
     if (check_type == policy_check_type::kAllow) {
         return do_policies_check(
             check_type, ac_type, user_name, allow_policies, allow_policies_exclude);

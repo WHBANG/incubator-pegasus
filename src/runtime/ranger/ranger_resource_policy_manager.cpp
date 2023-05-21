@@ -587,7 +587,7 @@ dsn::error_code ranger_resource_policy_manager::sync_policies_to_app_envs()
                 continue;
             }
             matched_database_table_policy _matched_database_table_policy(
-                {database_name, table_name, policy});
+                {database_name, table_name, policy.policies});
             // if table name does not conform to the naming rules(database_name.table_name),
             // database is defined by "*" in ranger for acl matching
             if (policy.table_names.count("*") != 0) {
