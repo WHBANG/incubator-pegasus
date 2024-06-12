@@ -116,6 +116,7 @@ void register_rpc_access_type(access_type ac_type,
     }
 }
 
+// (wanghao)
 // Used to map access_type matched resources policies json string.
 const std::map<std::string, access_type> kAccessTypeMaping({{"READ", access_type::kRead},
                                                             {"WRITE", access_type::kWrite},
